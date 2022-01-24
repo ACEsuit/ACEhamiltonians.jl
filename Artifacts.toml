@@ -1,0 +1,6 @@
+[test_data]
+git-tree-sha1 = "dfe4e2a4ac7a406cd851a292ca3e16bc9bff384b"
+
+    [[test_data.download]]
+    sha256 = "b875ea65c382143c289b8d2301f18abb990d62ddd55dd0ee7a3a6d50916b3421"
+    url = "https://github.com/ACEsuit/ACEhamiltonians_data/raw/main/test_data.tar.gz"

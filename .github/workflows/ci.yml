@@ -1,0 +1,40 @@
+name: CI
+
+# Run tests whenever a push or pull request is made.
+on: [push, pull_request]
+
+jobs:
+  test:
+    # Run on ubuntu
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Setup Julia environment
+      - name: Setup Julia environment
+        uses: julia-actions/setup-julia@latest
+        with:
+          version: 1.6
+          show-versioninfo: true
+
+      # Add the MolSim repository (there must be a better way of doing this)
+      - name: Adding additional repositories
+        run: |
+          julia -e "using Pkg;Pkg.pkg\"registry add https://github.com/JuliaMolSim/MolSim.git\""
+
+        # Only works when an ssh key is provided
+        # uses: julia-actions/add-julia-registry@v1
+        # with:
+        #   registry: https://github.com/JuliaMolSim/MolSim.git
+        
+      # Build the package
+      - name: Build package
+        uses: julia-actions/julia-buildpkg@v1
+
+      # Run the tests.
+      - name: Run Julia package tests
+        uses: julia-actions/julia-runtest@v1.7.0

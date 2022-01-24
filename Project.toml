@@ -1,0 +1,41 @@
+name = "ACEhamiltonians"
+uuid = "0c0b7517-201b-4082-a776-cd952d974092"
+version = "0.0.1"
+
+[deps]
+ACE = "3e8ccfd2-c8b0-11ea-32f1-f3a5990fd77a"
+ACEatoms = "1e34e032-0b37-4839-a012-196b35408c3c"
+ACEbase = "14bae519-eb20-449c-a949-9c58ed33163e"
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+DistributedArrays = "aaf54ef3-cdf8-58ed-94cc-d582ad619b94"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JuLIP = "945c410c-986d-556a-acb1-167a618e0462"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LowRankApprox = "898213cb-b102-5a47-900c-97e73b919f73"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[compat]
+ACE = "= 0.12.22"
+ACEbase = "= 0.2.2"
+ArgParse = "1"
+ArrayInterface = "2"
+DistributedArrays = "0.6"
+julia = "1.6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
