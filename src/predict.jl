@@ -190,10 +190,12 @@ function predict_offsite_HS(at::Atoms, model_whole::OffModelWhole, blocks)
    modelDP = model_whole.ModelDP
    modelDD = model_whole.ModelDD
 
-   H = zeros(ComplexF64,14,14,maximum(maximum(blocks)))   
+   # H = zeros(ComplexF64,14,14,maximum(maximum(blocks)))   
+   H = zeros(ComplexF64,14,14,length(blocks)) 
    for (bi, idx) in enumerate(blocks)
       i, j = Tuple(idx)
       i == j && continue
+      println("Predicting block $i $j")
       Rs = get_state(at,[(i,j)])
       cfg = ACEConfig(Rs[1])
 
@@ -267,6 +269,402 @@ function predict_offsite_HS(at::Atoms, model_whole::TBModelWhole)
    natoms = length(at)
    blocks = CartesianIndices((1:natoms, 1:natoms)) # FIXME should be triangular
    H_blocks = predict_offsite_HS(at, model_whole, blocks)
+   H_full = zeros(ComplexF64, 14, 14, natoms, natoms)
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i > j && continue
+      H_full[:, :, i, j] = H_blocks[:, :, bi]
+      H_full[:, :, j, i] = H_blocks[:, :, bi]'
+   end
+   return H_full
+end
+
+## dual symmetrisation
+using ACE: State
+function dual_state(st::State)
+   if st.be==:bond
+      return State(rr=-st.rr,rr0=-st.rr0,be=st.be)
+   elseif st.be==:env
+      return State(rr=st.rr-st.rr0,rr0=-st.rr0,be=st.be)
+   end
+end
+
+function dual_state(vst::Vector)
+   return dual_state.(vst)
+end
+
+function predict_offsite_HS_sym(at::Atoms, model_whole::OffModelWhole, blocks)
+
+   if !isoff(model_whole)
+      @warn("the given model might not refer to offsite model")
+   end
+
+   modelSS = model_whole.ModelSS
+   modelSP = model_whole.ModelSP
+   modelSD = model_whole.ModelSD
+   modelPS = model_whole.ModelPS
+   modelPP = model_whole.ModelPP
+   modelPD = model_whole.ModelPD
+   modelDS = model_whole.ModelDS
+   modelDP = model_whole.ModelDP
+   modelDD = model_whole.ModelDD
+
+   # H = zeros(ComplexF64,14,14,maximum(maximum(blocks)))   
+   H = zeros(ComplexF64,14,14,length(blocks))
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i == j && continue
+      println("Predicting block $i $j")
+      Rs = get_state(at,[(i,j)])
+      cfg = ACEConfig(Rs[1])
+      cfg_dual = ACEConfig(dual_state(Rs[1]))
+
+      #  compute the hamiltonian
+      #  -> H, S  as Norb x Norb x Nat × Nat tensor
+
+      # TODO: Again, there must exist a more elegant way to do the same thing!!
+      #       Thought: labeled the models (or maybe a dictionary for 0,1,2&spd?) and
+      #       construct a function to do such thing.
+
+      for k = 1:3, l=1:3
+         Aval = evaluate(modelSS[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k,l,bi] += (modelSS[ij2k(k,l,3)].coeffs' * A)[1] # + modelSS.mean[1]
+         Aval = evaluate(modelSS[ij2k(l,k,3)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,l,bi] += ((modelSS[ij2k(l,k,3)].coeffs' * A)[1])'
+      end
+
+      for k = 1:2, l=1:3
+         Aval = evaluate(modelSP[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l,bi] += modelSP[ij2k(k,l,3)].coeffs' * A
+         Aval = evaluate(modelPS[ij2k(l,k,2)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l,bi] += (modelPS[ij2k(l,k,2)].coeffs' * A)'
+      end
+      
+      for k = 1:3, l=1:2
+         Aval = evaluate(modelPS[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k:k,3l+1:3(l+1),bi] += modelPS[ij2k(k,l,2)].coeffs' * A
+         Aval = evaluate(modelSP[ij2k(l,k,3)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k:k,3l+1:3(l+1),bi] += (modelSP[ij2k(l,k,3)].coeffs' * A)'
+      end
+      
+      for k = 1:1, l=1:3
+         Aval = evaluate(modelSD[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l,bi] = modelSD[ij2k(k,l,3)].coeffs' * A
+         Aval = evaluate(modelDS[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l,bi] += (modelDS[ij2k(k,l,1)].coeffs' * A)'
+      end
+      
+      for k = 1:3, l=1:1
+         Aval = evaluate(modelDS[ij2k(k,l,1)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k:k,l+9:l+13,bi] = modelDS[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelSD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k:k,l+9:l+13,bi] += (modelSD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:2, l=1:2
+         Aval = evaluate(modelPP[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] += modelPP[ij2k(k,l,2)].coeffs' * A # + modelPP.mean[k,l]
+         Aval = evaluate(modelPP[ij2k(l,k,2)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] += (modelPP[ij2k(l,k,2)].coeffs' * A)' # + modelPP.mean[k,l]
+      end
+      
+      for k = 1:1, l=1:2
+         Aval = evaluate(modelPD[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,3l+1:3(l+1),bi] = modelPD[ij2k(k,l,2)].coeffs' * A
+         Aval = evaluate(modelDP[ij2k(k,l,2)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,3l+1:3(l+1),bi] += (modelDP[ij2k(k,l,2)].coeffs' * A)'
+      end
+      
+      for k = 1:2, l=1:1
+         Aval = evaluate(modelDP[ij2k(k,l,1)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l+9:l+13,bi] = modelDP[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelPD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l+9:l+13,bi] += (modelPD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:1, l=1:1
+         Aval = evaluate(modelDD[ij2k(k,l,1)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l+9:l+13,bi] += modelDD[ij2k(k,l,1)].coeffs' * A # + modelDD.mean[k,l]
+         Aval = evaluate(modelDD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l+9:l+13,bi] += (modelDD[ij2k(k,l,1)].coeffs' * A)' # + modelDD.mean[k,l]
+      end
+
+      # FIXME symmetrisation of i,j -> j,i removed: should be re-added in method below
+   end
+   return real(H)./2
+end
+
+function predict_offsite_HS_sym(at::Atoms, model_whole::TBModelWhole) 
+   natoms = length(at)
+   blocks = CartesianIndices((1:natoms, 1:natoms)) # FIXME should be triangular
+   H_blocks = predict_offsite_HS_sym(at, model_whole, blocks)
+   H_full = zeros(ComplexF64, 14, 14, natoms, natoms)
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i > j && continue
+      H_full[:, :, i, j] = H_blocks[:, :, bi]
+      H_full[:, :, j, i] = H_blocks[:, :, bi]'
+   end
+   return H_full
+end
+
+## getting rid of redundant models
+function predict_offsite_HS_redundant(at::Atoms, model_whole::OffModelWhole, blocks)
+
+   if !isoff(model_whole)
+      @warn("the given model might not refer to offsite model")
+   end
+
+   modelSS = model_whole.ModelSS
+   modelSP = model_whole.ModelSP
+   modelSD = model_whole.ModelSD
+   # modelPS = model_whole.ModelPS
+   modelPP = model_whole.ModelPP
+   modelPD = model_whole.ModelPD
+   # modelDS = model_whole.ModelDS
+   # modelDP = model_whole.ModelDP
+   modelDD = model_whole.ModelDD
+
+   # H = zeros(ComplexF64,14,14,maximum(maximum(blocks)))   
+   H = zeros(ComplexF64,14,14,length(blocks))
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i == j && continue
+      println("Predicting block $i $j")
+      Rs = get_state(at,[(i,j)])
+      cfg = ACEConfig(Rs[1])
+      cfg_dual = ACEConfig(dual_state(Rs[1]))
+
+      #  compute the hamiltonian
+      #  -> H, S  as Norb x Norb x Nat × Nat tensor
+
+      # TODO: Again, there must exist a more elegant way to do the same thing!!
+      #       Thought: labeled the models (or maybe a dictionary for 0,1,2&spd?) and
+      #       construct a function to do such thing.
+
+      for k = 1:3, l=1:3
+         Aval = evaluate(modelSS[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         # Aval_dual = evaluate(modelSS[ij2k(k,l,3)].basis, cfg_dual)
+         # A = ( A + evaluateval_real(Aval_dual) )/2
+         H[k,l,bi] = (modelSS[ij2k(k,l,3)].coeffs' * A)[1] # + modelSS.mean[1]
+      end
+
+      for k = 1:2, l=1:3
+         Aval = evaluate(modelSP[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l,bi] = modelSP[ij2k(k,l,3)].coeffs' * A
+      end
+      
+      for k = 1:3, l=1:2
+         # Aval = evaluate(modelPS[ij2k(k,l,2)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[k,3l+1:3(l+1),bi] = modelPS[ij2k(k,l,2)].coeffs' * A
+         Aval = evaluate(modelSP[ij2k(l,k,3)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,3l+1:3(l+1),bi] = (modelSP[ij2k(l,k,3)].coeffs' * A)'
+      end
+      
+      for k = 1:1, l=1:3
+         Aval = evaluate(modelSD[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l,bi] = modelSD[ij2k(k,l,3)].coeffs' * A
+      end
+      
+      for k = 1:3, l=1:1
+         # Aval = evaluate(modelDS[ij2k(k,l,1)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[k,l+9:l+13,bi] = modelDS[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelSD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,l+9:l+13,bi] = (modelSD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:2, l=1:2
+         Aval = evaluate(modelPP[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         # Aval_dual = evaluate(modelPP[ij2k(k,l,2)].basis, cfg_dual)
+         # A = ( A + evaluateval_real(Aval_dual) )/2
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] = modelPP[ij2k(k,l,2)].coeffs' * A # + modelPP.mean[k,l]
+      end
+      
+      for k = 1:1, l=1:2
+         Aval = evaluate(modelPD[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,3l+1:3(l+1),bi] = modelPD[ij2k(k,l,2)].coeffs' * A
+      end
+      
+      for k = 1:2, l=1:1
+         # Aval = evaluate(modelDP[ij2k(k,l,1)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[3k+1:3(k+1),l+9:l+13,bi] = modelDP[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelPD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l+9:l+13,bi] = (modelPD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:1, l=1:1
+         Aval = evaluate(modelDD[ij2k(k,l,1)].basis, cfg)
+         A = evaluateval_real(Aval)
+         # Aval_dual = evaluate(modelDD[ij2k(k,l,1)].basis, cfg_dual)
+         # A = ( A + evaluateval_real(Aval_dual) )/2
+         H[k+9:k+13,l+9:l+13,bi] = modelDD[ij2k(k,l,1)].coeffs' * A # + modelDD.mean[k,l]
+      end
+
+      # FIXME symmetrisation of i,j -> j,i removed: should be re-added in method below
+   end
+   return real(H)
+end
+
+function predict_offsite_HS_redundant(at::Atoms, model_whole::TBModelWhole) 
+   natoms = length(at)
+   blocks = CartesianIndices((1:natoms, 1:natoms)) # FIXME should be triangular
+   H_blocks = predict_offsite_HS_redundant(at, model_whole, blocks)
+   H_full = zeros(ComplexF64, 14, 14, natoms, natoms)
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i > j && continue
+      H_full[:, :, i, j] = H_blocks[:, :, bi]
+      H_full[:, :, j, i] = H_blocks[:, :, bi]'
+   end
+   return H_full
+end
+
+## Test on getting rid of redundant models + symmetrised homo-orbital
+function predict_offsite_HS_redundant_sym(at::Atoms, model_whole::OffModelWhole, blocks)
+
+   if !isoff(model_whole)
+      @warn("the given model might not refer to offsite model")
+   end
+
+   modelSS = model_whole.ModelSS
+   modelSP = model_whole.ModelSP
+   modelSD = model_whole.ModelSD
+   # modelPS = model_whole.ModelPS
+   modelPP = model_whole.ModelPP
+   modelPD = model_whole.ModelPD
+   # modelDS = model_whole.ModelDS
+   # modelDP = model_whole.ModelDP
+   modelDD = model_whole.ModelDD
+
+   H = zeros(ComplexF64,14,14,maximum(maximum(blocks)))   
+   for (bi, idx) in enumerate(blocks)
+      i, j = Tuple(idx)
+      i == j && continue
+      println("Predicting block $i $j")
+      Rs = get_state(at,[(i,j)])
+      cfg = ACEConfig(Rs[1])
+      cfg_dual = ACEConfig(dual_state(Rs[1]))
+
+      #  compute the hamiltonian
+      #  -> H, S  as Norb x Norb x Nat × Nat tensor
+
+      # TODO: Again, there must exist a more elegant way to do the same thing!!
+      #       Thought: labeled the models (or maybe a dictionary for 0,1,2&spd?) and
+      #       construct a function to do such thing.
+
+      for k = 1:3, l=1:3
+         Aval = evaluate(modelSS[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k,l,bi] += (modelSS[ij2k(k,l,3)].coeffs' * A)[1] # + modelSS.mean[1]
+         Aval = evaluate(modelSS[ij2k(l,k,3)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,l,bi] += ((modelSS[ij2k(l,k,3)].coeffs' * A)[1])'
+         H[k,l,bi] = H[k,l,bi]./2
+      end
+
+      for k = 1:2, l=1:3
+         Aval = evaluate(modelSP[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l,bi] = modelSP[ij2k(k,l,3)].coeffs' * A
+      end
+      
+      for k = 1:3, l=1:2
+         # Aval = evaluate(modelPS[ij2k(k,l,2)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[k,3l+1:3(l+1),bi] = modelPS[ij2k(k,l,2)].coeffs' * A
+         Aval = evaluate(modelSP[ij2k(l,k,3)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,3l+1:3(l+1),bi] = (modelSP[ij2k(l,k,3)].coeffs' * A)'
+      end
+      
+      for k = 1:1, l=1:3
+         Aval = evaluate(modelSD[ij2k(k,l,3)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l,bi] = modelSD[ij2k(k,l,3)].coeffs' * A
+      end
+      
+      for k = 1:3, l=1:1
+         # Aval = evaluate(modelDS[ij2k(k,l,1)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[k,l+9:l+13,bi] = modelDS[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelSD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k,l+9:l+13,bi] = (modelSD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:2, l=1:2
+         Aval = evaluate(modelPP[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] += modelPP[ij2k(k,l,2)].coeffs' * A # + modelPP.mean[k,l]
+         Aval = evaluate(modelPP[ij2k(l,k,2)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] += (modelPP[ij2k(l,k,2)].coeffs' * A)' # + modelPP.mean[k,l]
+         H[3k+1:3(k+1),3l+1:3(l+1),bi] = H[3k+1:3(k+1),3l+1:3(l+1),bi]./2
+      end
+      
+      for k = 1:1, l=1:2
+         Aval = evaluate(modelPD[ij2k(k,l,2)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,3l+1:3(l+1),bi] = modelPD[ij2k(k,l,2)].coeffs' * A
+      end
+      
+      for k = 1:2, l=1:1
+         # Aval = evaluate(modelDP[ij2k(k,l,1)].basis, cfg)
+         # A = evaluateval_real(Aval)
+         # H[3k+1:3(k+1),l+9:l+13,bi] = modelDP[ij2k(k,l,1)].coeffs' * A
+         Aval = evaluate(modelPD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[3k+1:3(k+1),l+9:l+13,bi] = (modelPD[ij2k(k,l,1)].coeffs' * A)'
+      end
+
+      for k = 1:1, l=1:1
+         Aval = evaluate(modelDD[ij2k(k,l,1)].basis, cfg)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l+9:l+13,bi] += modelDD[ij2k(k,l,1)].coeffs' * A # + modelDD.mean[k,l]
+         Aval = evaluate(modelDD[ij2k(k,l,1)].basis, cfg_dual)
+         A = evaluateval_real(Aval)
+         H[k+9:k+13,l+9:l+13,bi] += (modelDD[ij2k(k,l,1)].coeffs' * A)' # + modelDD.mean[k,l]
+         H[k+9:k+13,l+9:l+13,bi] = H[k+9:k+13,l+9:l+13,bi]./2
+      end
+
+      # FIXME symmetrisation of i,j -> j,i removed: should be re-added in method below
+   end
+   return real(H)
+end
+
+function predict_offsite_HS_redundant_sym(at::Atoms, model_whole::TBModelWhole) 
+   natoms = length(at)
+   blocks = CartesianIndices((1:natoms, 1:natoms)) # FIXME should be triangular
+   H_blocks = predict_offsite_HS_redundant(at, model_whole, blocks)
    H_full = zeros(ComplexF64, 14, 14, natoms, natoms)
    for (bi, idx) in enumerate(blocks)
       i, j = Tuple(idx)

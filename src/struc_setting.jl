@@ -150,8 +150,7 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    r0 = 2.5
    rin = 0.5 * r0
    #r0cut = 10.0
-   # renv = 10-rcut/2
-   renv = 5.0
+   renv = 10-rcut/2
    env = ACE.CylindricalBondEnvelope(rcut,renv,renv)
 
    Bsel = SimpleSparseBasis(ord+1, maxdeg)
