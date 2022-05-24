@@ -5,6 +5,8 @@ using ACE: PolyTransform, SphericalMatrix, PIBasis, SymmetricBasis,
            SimpleSparseBasis, Utils.RnYlm_1pbasis, CylindricalBondEnvelope, 
            Categorical1pBasis
 
+import ACEhamiltonians.Parameters: ison
+
 export Data, Params, OnsiteBasis, OffsiteBasis, TBModel, TBModelWhole, OnModelWhole, OffModelWhole, ison, isoff, get_sites
 
 ## Transfer block index and block number
