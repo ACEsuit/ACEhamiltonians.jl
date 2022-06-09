@@ -189,17 +189,17 @@ function get_state(at,i::Int64,j::Int64,env::BondEnvelope)
    st = State(rr = rr, rr0 = rr, be=:bond)
    #st = [ State(rr = neigh_i[2][j], rr0 = neigh_i[2][j], be=:bond) for j in set]
    for (jj, rj) in enumerate(neigh_i[2])
-      st_temp = State(rr = rj, rr0 = rr, be=:env)
-      if rj≠rr && filter(env,st_temp)
+      st_temp = State(rr = rj - rr/2, rr0 = rr, be=:env)
+      if !(rj≈rr) && filter(env,st_temp)
          st = [st; st_temp]
       end
    end
    return st
 end
 
-get_state(at,index,env=CylindricalBondEnvelope(18.0,10.0,10.0)) = [ get_state(at,i,j,env) for (i,j) in index ]
+get_state(at,index,env=CylindricalBondEnvelope(18.0,10.0,10.0;λ=.0)) = [ get_state(at,i,j,env) for (i,j) in index ]
 
-function data_preprocess(data,L1,L2,index::Vector{Tuple{Int64, Int64}},env=CylindricalBondEnvelope(18.0,10.0,10.0))
+function data_preprocess(data,L1,L2,index::Vector{Tuple{Int64, Int64}},env=CylindricalBondEnvelope(18.0,10.0,10.0;λ=.0))
    H = data[1][1][:,:]
    S = data[1][2][:,:]
    at = data[3]
