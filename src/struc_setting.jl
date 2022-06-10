@@ -1,11 +1,16 @@
 module Structure
 
-using ACE
+using ACE, SparseArrays, LinearAlgebra
 using ACE: PolyTransform, SphericalMatrix, PIBasis, SymmetricBasis,
            SimpleSparseBasis, Utils.RnYlm_1pbasis, CylindricalBondEnvelope, 
-           Categorical1pBasis
+           Categorical1pBasis, get_spec
 
 export Data, Params, OnsiteBasis, OffsiteBasis, TBModel, TBModelWhole, OnModelWhole, OffModelWhole, ison, isoff, get_sites
+import LinearAlgebra.adjoint, LinearAlgebra.transpose, Base./
+
+adjoint(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(A.val', Val{L2}(), Val{L1}())
+transpose(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(transpose(A.val), Val{L2}(), Val{L1}())
+/(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}, b::Number) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(A.val/b, Val{L1}(), Val{L2}())
 
 ## Transfer block index and block number
 const D_ind2L = Dict(  1 => [0,0],
@@ -145,7 +150,7 @@ function filter_offsite_be(bb,maxdeg,λ_n=.5,λ_l=.5)
    return ( sum( b.be == :bond for b in bb ) == 1 )
 end
 
-function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5)
+function OffsiteBasis_nonsym(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5)
    # Environment parameters for basis
    r0 = 2.5
    rin = 0.5 * r0
@@ -167,9 +172,58 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    φ = SphericalMatrix(L1, L2; T = ComplexF64)
    basis = SymmetricBasis(φ, B1p, Bsel; filterfun = maxdeg2filterfun(maxdeg,λ_n,λ_l))
 
+   return basis
+end
+
+function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5)
+   # construct non-symmetric offsite basis
+   b = OffsiteBasis_nonsym(rcut,maxdeg,ord,L1,L2,λ_n,λ_l)
+   if L1 == L2
+      bb = b
+   else
+      bb = OffsiteBasis_nonsym(rcut,maxdeg,ord,L2,L1,λ_n,λ_l)
+   end
+   # symmetrise coefficients
+   U = sym_coeffs(bb.A2Bmap, bb.pibasis)
+   U_new = dropzeros((b.A2Bmap + U)./2)
+   
+   # construct symmetric offsite basis
+   basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
+   
    return OffsiteBasis(rcut,maxdeg,ord,basis)
 end
 
+function sym_coeffs(U::SparseMatrixCSC{T,F},bpi) where {T,F}
+   A = get_spec(bpi)
+   D = Dict{Any, Int}()
+   for (i, val) in enumerate(A)
+       D[val]= i
+   end
+   UU = spzeros(eltype(transpose.(U)),size(U)[1],size(U)[2])
+   for i = 1:size(UU)[1]
+       for j = 1:size(UU)[2]
+           if norm(U[i,j]) ≠ 0
+               sgn = 0
+               U_temp = copy(A[j])
+               for (i,k) in enumerate(A[j])
+                   #if k.be == :bond
+                   U_temp[i] = (be = k.be, n = k.n, l = k.l, m = -k.m)
+                   sgn += k.m
+                   #end
+               end
+               if !(U_temp in A)
+                   for UU_temp in A
+                       if sort(UU_temp) == sort(U_temp)
+                           U_temp = UU_temp
+                       end
+                   end
+               end
+               UU[i,j] = (-1)^(sgn+sort(U_temp)[1].l) * adjoint(U[i,D[U_temp]])
+           end
+       end
+   end
+   return UU
+end
 ## Models for fitting TB Hamiltonian
 """
 An ACE model usually has fields basis & coeffs, 
