@@ -3,7 +3,7 @@ module Structure
 using ACE, SparseArrays, LinearAlgebra
 using ACE: PolyTransform, SphericalMatrix, PIBasis, SymmetricBasis,
            SimpleSparseBasis, Utils.RnYlm_1pbasis, CylindricalBondEnvelope, 
-           Categorical1pBasis, get_spec
+           Categorical1pBasis, get_spec#, coco_dot
 
 export Data, Params, OnsiteBasis, OffsiteBasis, TBModel, TBModelWhole, OnModelWhole, OffModelWhole, ison, isoff, get_sites
 import LinearAlgebra.adjoint, LinearAlgebra.transpose, Base./
@@ -222,6 +222,13 @@ function sym_coeffs(U::SparseMatrixCSC{T,F},bpi) where {T,F}
            end
        end
    end
+#    G = [ sum( coco_dot(UU[a,i], UU[b,i]) for i = 1:size(UU)[2] )
+#    		for a = 1:size(UU)[1], b = 1:size(UU)[1] ]
+#    svdC = svd(G)
+#    rk = rank(Diagonal(svdC.S), rtol = 1e-7)
+#    Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
+#    UU = sparse(Ured * UU)
+#    dropzeros!(UU)
    return UU
 end
 ## Models for fitting TB Hamiltonian
