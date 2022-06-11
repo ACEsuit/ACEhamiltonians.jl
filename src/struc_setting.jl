@@ -187,13 +187,13 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    U = sym_coeffs(bb.A2Bmap, bb.pibasis)
    U_new = dropzeros((b.A2Bmap + U)./2)
                       
-   G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) 
-           for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
-   svdC = svd(G)
-   rk = rank(Diagonal(svdC.S), rtol = 1e-7)
-   Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
-   U_new = sparse(Ured * U_new)
-   dropzeros!(U_new)
+#    G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) 
+#            for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
+#    svdC = svd(G)
+#    rk = rank(Diagonal(svdC.S), rtol = 1e-7)
+#    Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
+#    U_new = sparse(Ured * U_new)
+#    dropzeros!(U_new)
    
    # construct symmetric offsite basis
    basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
@@ -201,7 +201,7 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    return OffsiteBasis(rcut,maxdeg,ord,basis)
 end
            
-notzero(U,a,b) = intersect(U[a,:].nzind, U[b,:].nzind)
+# notzero(U,a,b) = intersect(U[a,:].nzind, U[b,:].nzind)
 
 function sym_coeffs(U::SparseMatrixCSC{T,F},bpi) where {T,F}
    A = get_spec(bpi)
