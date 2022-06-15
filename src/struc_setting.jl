@@ -3,7 +3,7 @@ module Structure
 using ACE, SparseArrays, LinearAlgebra
 using ACE: PolyTransform, SphericalMatrix, PIBasis, SymmetricBasis,
            SimpleSparseBasis, Utils.RnYlm_1pbasis, CylindricalBondEnvelope, 
-           Categorical1pBasis, get_spec#, coco_dot
+           Categorical1pBasis, get_spec, coco_dot
 
 export Data, Params, OnsiteBasis, OffsiteBasis, TBModel, TBModelWhole, OnModelWhole, OffModelWhole, ison, isoff, get_sites
 import LinearAlgebra.adjoint, LinearAlgebra.transpose, Base./
