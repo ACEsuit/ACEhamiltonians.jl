@@ -185,25 +185,29 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
          # this also indicates that adjoint.(B) form a dual symmetric basis with coupling coefficients adjoint.(U) * perm(A)
          # last sign comes from dual state A_l(r_dual) = -1^l A(r)
          U = dropzeros(adjoint.(b.A2Bmap) * perm(A) * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
-      else
-         # for offsite, the self-adjoint are done twince
-         U = dropzeros(b.A2Bmap * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
+         # else
+         #    # for offsite, the self-adjoint are done twince
+         #    U = dropzeros(b.A2Bmap * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
+         # end
+         U_new = dropzeros((b.A2Bmap + U)./2)
+   
+         # get rid of linear dependence
+         G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
+         svdC = svd(G)
+         rk = rank(Diagonal(svdC.S), rtol = 1e-7)
+         Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
+         U_new = sparse(Ured * U_new)
+         dropzeros!(U_new)
+   
+         # construct symmetric offsite basis
+         basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
+      else 
+         basis = b
       end
-      U_new = dropzeros((b.A2Bmap + U)./2)
-   
-      # get rid of linear dependence
-      G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
-      svdC = svd(G)
-      rk = rank(Diagonal(svdC.S), rtol = 1e-7)
-      Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
-      U_new = sparse(Ured * U_new)
-      dropzeros!(U_new)
-   
-      # construct symmetric offsite basis
-      basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
    else
       A = get_spec(b.pibasis)
-      U_new = adjoint.(OffsiteBasis(rcut, maxdeg, ord, L2, L1, λ_n, λ_l).basis.A2Bmap) * perm(A)
+      # a potentially error here if A2Bmap has 0 row - but hopefully it rarely happens?
+      U_new = adjoint.(OffsiteBasis(rcut, maxdeg, ord, L2, L1, λ_n, λ_l).basis.A2Bmap) * perm(A)* sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] ))
       # very strange...
       U_new = dropzeros(U_new - U_new + U_new)
       basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
