@@ -178,62 +178,98 @@ end
 function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5)
    # construct non-symmetric offsite basis
    b = OffsiteBasis_nonsym(rcut,maxdeg,ord,L1,L2,λ_n,λ_l)
-   if L1 == L2
-      bb = b
+   if L1 ≤ L2
+      A = get_spec(b.pibasis)
+      if L1 == L2
+         # Given that B = U A, we have adjoint.(B) = adjoint.(U) * perm(A) * A; 
+         # this also indicates that adjoint.(B) form a dual symmetric basis with coupling coefficients adjoint.(U) * perm(A)
+         # last sign comes from dual state A_l(r_dual) = -1^l A(r)
+         U = dropzeros(adjoint.(b.A2Bmap) * perm(A) * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
+      else
+         # for offsite, the self-adjoint are done twince
+         U = dropzeros(b.A2Bmap * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
+      end
+      U_new = dropzeros((b.A2Bmap + U)./2)
+   
+      # get rid of linear dependence
+      G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
+      svdC = svd(G)
+      rk = rank(Diagonal(svdC.S), rtol = 1e-7)
+      Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
+      U_new = sparse(Ured * U_new)
+      dropzeros!(U_new)
+   
+      # construct symmetric offsite basis
+      basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
    else
-      bb = OffsiteBasis_nonsym(rcut,maxdeg,ord,L2,L1,λ_n,λ_l)
+      A = get_spec(b.pibasis)
+      U_new = adjoint.(OffsiteBasis(rcut, maxdeg, ord, L2, L1, λ_n, λ_l).basis.A2Bmap) * perm(A)
+      # very strange...
+      U_new = dropzeros(U_new - U_new + U_new)
+      basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
    end
-   # symmetrise coefficients
-   U = sym_coeffs(bb.A2Bmap, bb.pibasis)
-   U_new = dropzeros((b.A2Bmap + U)./2)
-                      
-#    G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) 
-#            for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
-#    svdC = svd(G)
-#    rk = rank(Diagonal(svdC.S), rtol = 1e-7)
-#    Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
-#    U_new = sparse(Ured * U_new)
-#    dropzeros!(U_new)
-   
-   # construct symmetric offsite basis
-   basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
-   
    return OffsiteBasis(rcut,maxdeg,ord,basis)
 end
-           
-# notzero(U,a,b) = intersect(U[a,:].nzind, U[b,:].nzind)
 
-function sym_coeffs(U::SparseMatrixCSC{T,F},bpi) where {T,F}
-   A = get_spec(bpi)
-   D = Dict{Any, Int}()
-   for (i, val) in enumerate(A)
-       D[val]= i
-   end
-   UU = spzeros(eltype(transpose.(U)),size(U)[1],size(U)[2])
-   for i = 1:size(UU)[1]
-       for j = 1:size(UU)[2]
-           if norm(U[i,j]) ≠ 0
-               sgn = 0
-               U_temp = copy(A[j])
-               for (i,k) in enumerate(A[j])
-                   #if k.be == :bond
-                   U_temp[i] = (be = k.be, n = k.n, l = k.l, m = -k.m)
-                   sgn += k.m
-                   #end
-               end
-               if !(U_temp in A)
-                   for UU_temp in A
-                       if sort(UU_temp) == sort(U_temp)
-                           U_temp = UU_temp
-                       end
-                   end
-               end
-               UU[i,j] = (-1)^(sgn+sort(U_temp)[1].l) * adjoint(U[i,D[U_temp]])
-           end
-       end
-   end
-   return UU
+notzero(U,a,b) = intersect(U[a,:].nzind, U[b,:].nzind)
+
+function perm(A)
+	D = Dict{Any, Int}()
+	for (i, val) in enumerate(A)
+	   D[val]= i
+	end
+	P = spzeros(length(A),length(A))
+	for j = 1:length(A)
+		sgn = 0
+		U_temp = copy(A[j])
+		for (i,k) in enumerate(A[j])
+			U_temp[i] = (be = k.be, n = k.n, l = k.l, m = -k.m)
+			sgn += k.m
+		end
+		if !(U_temp in A)
+			for UU_temp in A
+   				if sort(UU_temp) == sort(U_temp)
+	   				U_temp = UU_temp
+   				end
+			end
+		end
+		@assert(U_temp in A)
+		P[j,D[U_temp]] = (-1)^sgn
+	end
+	return P
 end
+
+# function sym_coeffs(U::SparseMatrixCSC{T,F},bpi) where {T,F}
+#    A = get_spec(bpi)
+#    D = Dict{Any, Int}()
+#    for (i, val) in enumerate(A)
+#        D[val]= i
+#    end
+#    UU = spzeros(eltype(transpose.(U)),size(U)[1],size(U)[2])
+#    for i = 1:size(UU)[1]
+#        for j = 1:size(UU)[2]
+#            if norm(U[i,j]) ≠ 0
+#                sgn = 0
+#                U_temp = copy(A[j])
+#                for (i,k) in enumerate(A[j])
+#                    #if k.be == :bond
+#                    U_temp[i] = (be = k.be, n = k.n, l = k.l, m = -k.m)
+#                    sgn += k.m
+#                    #end
+#                end
+#                if !(U_temp in A)
+#                    for UU_temp in A
+#                        if sort(UU_temp) == sort(U_temp)
+#                            U_temp = UU_temp
+#                        end
+#                    end
+#                end
+#                UU[i,j] = (-1)^(sgn+sort(U_temp)[1].l) * adjoint(U[i,D[U_temp]])
+#            end
+#        end
+#    end
+#    return UU
+# end
 ## Models for fitting TB Hamiltonian
 """
 An ACE model usually has fields basis & coeffs, 
