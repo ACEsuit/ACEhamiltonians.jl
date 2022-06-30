@@ -224,10 +224,10 @@ end
 
         # Make sure that only valid types are accepted
         @testset "Type Guarding" begin
-            @test_throws AssertionError OnSiteParaSet(G(1.0), G(1), G(1.0), G(0.1))
-            @test_throws AssertionError OnSiteParaSet(G(1), G(1.0), G(1.0), G(0.1))
-            @test_throws AssertionError OnSiteParaSet(G(1), G(1), G(1), G(0.1))
-            @test_throws AssertionError OnSiteParaSet(G(1), G(1), G(1.0), G(0))
+            @test_throws TypeError OnSiteParaSet(G(1.0), G(1), G(1.0), G(0.1))
+            @test_throws TypeError OnSiteParaSet(G(1), G(1.0), G(1.0), G(0.1))
+            @test_throws TypeError OnSiteParaSet(G(1), G(1), G(1), G(0.1))
+            @test_throws TypeError OnSiteParaSet(G(1), G(1), G(1.0), G(0))
         end
 
         ps = OnSiteParaSet(G(2), G(4), G(12.0), G(0.5))
@@ -266,11 +266,11 @@ end
 
         # Make sure that only valid types are accepted
         @testset "Type Guarding" begin
-            @test_throws AssertionError OffSiteParaSet(G(1.), G(1), G(1.0), G(1.0), G(0.1))
-            @test_throws AssertionError OffSiteParaSet(G(1), G(1.), G(1.0), G(1.0), G(0.1))
-            @test_throws AssertionError OffSiteParaSet(G(1), G(1), G(1), G(1.0), G(0.1))
-            @test_throws AssertionError OffSiteParaSet(G(1), G(1), G(1.0), G(1), G(0.1))
-            @test_throws AssertionError OffSiteParaSet(G(1), G(1), G(1.0), G(1.0), G(1))
+            @test_throws TypeError OffSiteParaSet(G(1.), G(1), G(1.0), G(1.0), G(0.1))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1.), G(1.0), G(1.0), G(0.1))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1), G(1.0), G(0.1))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1.0), G(1), G(0.1))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1.0), G(1.0), G(1))
         end
 
 

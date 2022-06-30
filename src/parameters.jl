@@ -142,7 +142,7 @@ function Base.:⊆(x::Label{N₁, I}, y::Label{N₂, I}) where {N₁, N₂, I}
     end
 end
 
-# Routines to handel comparisons with tuples and the reverse subset operator `⊇`. 
+# Routines to handle comparisons with tuples and the reverse subset operator `⊇`. 
 Base.:⊆(x::T₁, y::T₂) where {T₁<:Label, T₂} = x ⊆ Label(y)
 Base.:⊆(x::T₁, y::T₂) where {T₁, T₂<:Label} = Label(x) ⊆ y
 Base.:⊇(x::T₁, y::T₂) where {T₁<:Label, T₂} = y ⊆ x
@@ -616,20 +616,6 @@ end
 # all the required parameters are specified and provide a single location where user
 # specified parameters can be collected and checked.
 
-
-# ╭─────────┬───────╮
-# │ ParaSet │ Setup │
-# ╰─────────┴───────╯
-"""Internal function which ensures a specified argument `arg` has the value type `T`."""
-macro guard_type(arg, T)
-    msg = "argument \"$(string(arg))\" must be an $T"
-    quote
-        arg = valtype($(esc(arg)))
-        @assert arg <: $T $msg
-    end
-end
-
-
 # ╭─────────┬────────────╮
 # │ ParaSet │ Definition │
 # ╰─────────┴────────────╯
@@ -665,10 +651,10 @@ struct OnSiteParaSet <: ParaSet
 
     function OnSiteParaSet(ν::T₁, deg::T₂, e_cut_out::T₃, e_cut_in::T₄
         ) where {T₁<:NewParams, T₂<:NewParams, T₃<:NewParams, T₄<:NewParams}
-        @guard_type ν Integer
-        @guard_type deg Integer
-        @guard_type e_cut_out AbstractFloat
-        @guard_type e_cut_in AbstractFloat
+        ν::NewParams{<:Label, <:Integer}
+        deg::NewParams{<:Label, <:Integer}
+        e_cut_out::NewParams{<:Label, <:AbstractFloat}
+        e_cut_in::NewParams{<:Label, <:AbstractFloat}
         new(ν, deg, e_cut_out, e_cut_in)
     end
 
@@ -697,11 +683,11 @@ struct OffSiteParaSet <: ParaSet
     
     function OffSiteParaSet(ν::T₁, deg::T₂, b_cut::T₃, e_cut_out::T₄, e_cut_in::T₅
         ) where {T₁<:NewParams, T₂<:NewParams, T₃<:NewParams, T₄<:NewParams, T₅<:NewParams}
-        @guard_type ν Integer
-        @guard_type deg Integer
-        @guard_type b_cut AbstractFloat
-        @guard_type e_cut_out AbstractFloat
-        @guard_type e_cut_in AbstractFloat
+        ν::NewParams{<:Label, <:Integer}
+        deg::NewParams{<:Label, <:Integer}
+        b_cut::NewParams{<:Label, <:AbstractFloat}
+        e_cut_out::NewParams{<:Label, <:AbstractFloat}
+        e_cut_in::NewParams{<:Label, <:AbstractFloat}
         new(ν, deg, b_cut, e_cut_out, e_cut_in)
     end
 
