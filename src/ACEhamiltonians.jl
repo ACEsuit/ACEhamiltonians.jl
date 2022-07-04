@@ -2,6 +2,10 @@ module ACEhamiltonians
 
 using JuLIP, JSON, HDF5, Reexport
 
+
+include("parameters.jl")
+@reexport using ACEhamiltonians.Parameters
+
 include("struc_setting.jl")
 @reexport using ACEhamiltonians.Structure
 

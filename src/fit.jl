@@ -161,7 +161,10 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
    if Solver == "QR"
       return real(qr(A) \ Y)
    elseif Solver == "LSQR"
-      return real(IterativeSolvers.lsqr(distribute(A), distribute(Y); atol = 1e-6, btol = 1e-6))
+      Ad, Yd = distribute(A), distribute(Y)
+      res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
+      close(Ad), close(Yd)
+      return res
    elseif Solver == "NaiveSolver"
       return real((A'*A) \ (A'*Y))
    end
