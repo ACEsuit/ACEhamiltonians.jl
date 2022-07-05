@@ -22,6 +22,9 @@ BasisDef = Dict{I, Vector{I}} where I<:Integer
 include("io.jl")
 @reexport using ACEhamiltonians.DatabaseIO
 
+include("parameters.jl")
+@reexport using ACEhamiltonians.Parameters
+
 include("struc_setting.jl")
 @reexport using ACEhamiltonians.Structure
 
