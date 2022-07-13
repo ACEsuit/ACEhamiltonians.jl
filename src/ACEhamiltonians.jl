@@ -3,6 +3,25 @@ module ACEhamiltonians
 using JuLIP, JSON, HDF5, Reexport
 
 
+export BasisDef
+
+"""
+    BasisDef(atomic_number => [ℓ₁, ..., ℓᵢ], ...)
+
+Provides information about the basis set by specifying the azimuthal quantum numbers (ℓ)
+of each shell on each species. Dictionary is keyed by atomic numbers & valued by vectors
+of ℓs i.e. `Dict{atomic_number, [ℓ₁, ..., ℓᵢ]}`. 
+
+A minimal basis set for hydrocarbon systems would be `BasisDef(1=>[0], 6=>[0, 0, 1])`.
+This declares hydrogen atoms as having only a single s-shell and carbon atoms as having
+two s-shells and one p-shell.
+"""
+BasisDef = Dict{I, Vector{I}} where I<:Integer
+
+
+include("io.jl")
+@reexport using ACEhamiltonians.DatabaseIO
+
 include("parameters.jl")
 @reexport using ACEhamiltonians.Parameters
 
