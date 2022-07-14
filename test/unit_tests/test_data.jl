@@ -219,7 +219,7 @@ using ACEhamiltonians.MatrixManipulation: _blk_starts, _sblk_starts, _get_blocks
                     for _=1:n_samples
                         n, m = rand(1:max_blk_size), rand(1:max_blk_size)
                         
-                        # Starts must be generated so that they do cause blocks to overlap 
+                        # Starts must be generated so that they don't cause blocks to overlap 
                         starts = Matrix{Int}(undef, 2, n_blocks)
                         
                         for c=1:n_blocks
@@ -265,7 +265,7 @@ using ACEhamiltonians.MatrixManipulation: _blk_starts, _sblk_starts, _get_blocks
                     for _=1:n_samples
                         n, m = rand(1:max_blk_size), rand(1:max_blk_size)
                         
-                        # Starts must be generated so that they do cause blocks to overlap 
+                        # Starts must be generated so that they don't cause blocks to overlap 
                         starts = Matrix{Int}(undef, 3, n_blocks)
                         
                         for c=1:n_blocks

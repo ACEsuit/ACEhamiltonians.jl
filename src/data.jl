@@ -4,7 +4,9 @@ module MatrixManipulation
 using ACEhamiltonians
 using JuLIP: Atoms
 
-export BlkIdx, atomic_blk_idxs, repeat_atomic_blk_idxs, filter_on_site_idxs, filter_off_site_idxs, filter_upper_idxs, filter_lower_idxs, get_sub_blocks, set_sub_blocks!, get_blocks, set_blocks!
+export BlkIdx, atomic_blk_idxs, repeat_atomic_blk_idxs, filter_on_site_idxs,
+       filter_off_site_idxs, filter_upper_idxs, filter_lower_idxs, get_sub_blocks,
+       set_sub_blocks!, get_blocks, set_blocks!, locate_and_get_sub_blocks
 
 # ╔═════════════════════╗
 # ║ Matrix Manipulation ║
@@ -556,5 +558,108 @@ function set_blocks!(matrix::AbstractArray, values, blk_idxs::BlkIdx, atoms::Ato
     # Carry out the scatter operation.
     _set_blocks!(values, matrix, starts)
 end
+
+
+"""
+    locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms, basis_def)
+
+Collects sub-blocks from the supplied matrix that correspond to off-site interactions
+between the `s_i`'th shell on species `z_1` and the `s_j`'th shell on species `z_2`.
+
+# Arguments
+- `matrix`: matrix from which to draw. This may be in either the 3D real-space N×N×C form
+  or the single k-point N×N form; where N & C are the N∘ of orbitals & images respectively.
+- `z_1`: 1ˢᵗ species (atomic number) 
+- `z_2`: 2ⁿᵈ species (atomic number)
+- `s_i`: shell on 1ˢᵗ species
+- `s_j`: shell on 2ⁿᵈ species
+- `atoms`: target system's `JuLIP.Atoms` objects
+- `basis_def`: corresponding basis set definition object (`BasisDef`)
+
+# Returns
+- `sub_blocks`: an Nᵢ×Nⱼ×M array containing the collected sub-blocks; where Nᵢ & Nⱼ are
+  the number of orbitals on the `s_i`'th & `s_j`'th shells of species `z_1` & `z_2`
+  respectively, and M is the N∘ of sub-blocks found.
+- `blk_idxs`: A matrix specifying which atomic block each sub-block in `sub_blocks`
+  was taken from. If `matrix` is a 3D real space matrix then `blk_idxs` will also
+  include the cell index.
+
+# Notes
+If `matrix` is supplied in its 3D real-space form then it is imperative to ensure that
+the origin cell is first. 
+"""
+locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def) = _locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms, basis_def)
+
+"""
+    locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms, basis_def)
+
+Collects sub-blocks from the supplied matrix that correspond to on-site interactions
+between the `s_i`'th & `s_j`'th shells on species `z`.
+
+# Arguments
+- `matrix`: matrix from which to draw. This may be in either the 3D real-space N×N×C form
+  or the single k-point N×N form; where N & C are the N∘ of orbitals & images respectively.
+- `z_1`: target species (atomic number) 
+- `s_i`: 1ˢᵗ shell
+- `s_j`: 2ⁿᵈ shell
+- `atoms`: target system's `JuLIP.Atoms` objects
+- `basis_def`: corresponding basis set definition object (`BasisDef`)
+
+# Returns
+- `sub_blocks`: an Nᵢ×Nⱼ×M array containing the collected sub-blocks; where Nᵢ & Nⱼ are
+  the number of orbitals on the `s_i`'th & `s_j`'th shells of species `z_1` & `z_2`
+  respectively, and M is the N∘ of sub-blocks found.
+- `blk_idxs`: A matrix specifying which atomic block each sub-block in `sub_blocks`
+  was taken from. If `matrix` is a 3D real space matrix then `blk_idxs` will also
+  include the cell index.
+
+# Notes
+If `matrix` is supplied in its 3D real-space form then it is imperative to ensure that
+the origin cell is first. 
+"""
+locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms::Atoms, basis_def) = _locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms, basis_def)
+
+# Multiple dispatch is used to avoid the type instability in `locate_and_get_sub_blocks`
+# associated with the creation of the `blk_idxs` variable. It is also used to help
+# distinguish between on-site and off-site collection operations. The following
+# `_locate_and_get_sub_blocks` functions differ only in how they construct `blk_idxs`.
+
+# Off site _locate_and_get_sub_blocks functions
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 2}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def) where T
+    blk_idxs = atomic_blk_idxs(z_1, z_2, atoms.Z)
+    blk_idxs = filter_off_site_idxs(blk_idxs)
+    # Duplicate blocks present when gathering off-site homo-atomic homo-orbital interactions
+    # must be purged. 
+    if (z_1 == z_2) && (s_i == s_j)
+        blk_idxs = filter_upper_idxs(blk_idxs) 
+    end
+    return get_sub_blocks(matrix, blk_idxs, s_i, s_j, atoms, basis_def), blk_idxs
+end
+
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def) where T
+    blk_idxs = atomic_blk_idxs(z_1, z_2, atoms.Z)
+    blk_idxs = repeat_atomic_blk_idxs(blk_idxs, size(matrix, 3))
+    blk_idxs = filter_off_site_idxs(blk_idxs)
+    if (z_1 == z_2) && (s_i == s_j)
+        blk_idxs = filter_upper_idxs(blk_idxs) 
+    end
+    return get_sub_blocks(matrix, blk_idxs, s_i, s_j, atoms, basis_def), blk_idxs
+end
+
+# On site _locate_and_get_sub_blocks functions
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 2}, z, s_i, s_j, atoms::Atoms, basis_def) where T
+    blk_idxs = atomic_blk_idxs(z, z, atoms.Z)
+    blk_idxs = filter_on_site_idxs(blk_idxs)
+    return get_sub_blocks(matrix, blk_idxs, s_i, s_j, atoms, basis_def), blk_idxs
+end
+
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z, s_i, s_j, atoms::Atoms, basis_def) where T
+    blk_idxs = atomic_blk_idxs(z, z, atoms.Z)
+    blk_idxs = filter_on_site_idxs(blk_idxs)
+    blk_idxs = repeat_atomic_blk_idxs(blk_idxs, 1)
+    return get_sub_blocks(matrix, blk_idxs, s_i, s_j, atoms, basis_def), blk_idxs
+end
+
+
 
 end
