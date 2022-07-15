@@ -27,6 +27,8 @@ include("parameters.jl")
 
 include("data.jl")
 @reexport using ACEhamiltonians.MatrixManipulation
+
+include("states.jl")
 @reexport using ACEhamiltonians.States
 
 include("struc_setting.jl")
