@@ -621,7 +621,7 @@ end
             @test get_state(1, 2, atoms, env, [0, 0, 0]) == get_state(1, 2, atoms, env)
             
             # and can manually build it if it is not present in the neighbour list.
-            @test length(get_state(1, 2, atoms, env, [0, 0, -1])) == 2
+            @test length(get_state(1, 2, atoms, env, [0, 0, -100])) == 1
         
         end
     end
