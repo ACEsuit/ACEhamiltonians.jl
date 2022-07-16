@@ -1,8 +1,10 @@
-using ACEhamiltonians, Test, Random
+using ACEhamiltonians, Test
 using JuLIP: Atoms
 
 
-using ACEhamiltonians.MatrixManipulation: _block_starts, _sub_block_starts, _get_blocks!, _set_blocks!
+using ACEhamiltonians.MatrixManipulation:
+    _block_starts, _sub_block_starts, _get_blocks!,
+    _set_blocks!
 
 
 @testset "Matrix Manipulation" begin
@@ -496,4 +498,3 @@ using ACEhamiltonians.MatrixManipulation: _block_starts, _sub_block_starts, _get
     end
     
 end
-

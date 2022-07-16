@@ -1,5 +1,3 @@
-
-
 module MatrixManipulation
 using ACEhamiltonians
 using JuLIP: Atoms
@@ -659,7 +657,5 @@ function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z, s_i, s_j, at
     block_idxs = repeat_atomic_block_idxs(block_idxs, 1)
     return get_sub_blocks(matrix, block_idxs, s_i, s_j, atoms, basis_def), block_idxs
 end
-
-
 
 end
