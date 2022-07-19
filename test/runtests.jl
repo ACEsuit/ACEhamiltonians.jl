@@ -6,6 +6,7 @@ using Test
         include("unit_tests/test_parameters.jl")
         include("unit_tests/test_data.jl")
         include("unit_tests/test_states.jl")
+        include("unit_tests/test_datastructs.jl")
     end
 
     @testset "Regression Tests" begin
