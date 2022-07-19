@@ -31,6 +31,9 @@ include("data.jl")
 include("states.jl")
 @reexport using ACEhamiltonians.States
 
+include("datastructs.jl")
+@reexport using ACEhamiltonians.DataSets
+
 include("struc_setting.jl")
 @reexport using ACEhamiltonians.Structure
 
