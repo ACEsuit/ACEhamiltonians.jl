@@ -115,7 +115,7 @@ using HDF5  # ← Can be removed once support for old HDF5 formats is dropped
 #   - The unit information provided in the HDF5 databases should be made use of once
 #     a grand consensus as to what internal units should be used.
 
-export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition
+export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition, load_density_of_states
 
 
 # Booleans stored by python are interpreted as Int8 by Julia rather than as booleans. Thus
@@ -181,7 +181,7 @@ shell for each species.
 """
 function load_basis_set_definition(src::Group)
     # Basis set definition is stored in "/Info/Basis" relative to the system's top level
-    # group. 
+    # group.
     src = src["Info/Basis"]
     # Basis set definition is stored as a series of vector datasets with names which
     # correspond the associated atomic number. 
@@ -289,6 +289,23 @@ load_hamiltonian_gamma(src::Group) = read(src["Data/H_gamma"])
 load_overlap_gamma(src::Group) = read(src["Data/S_gamma"])
 # Todo: add unit conversion to `load_overlap_gamma`
 
+"""
+
+# Returns
+- `values::Vector`: density of states.
+- `energies::Vector`: energies at which densities of states were evaluated relative to
+   the fermi-level.
+- `broadening::AbstractFloat`: broadening factor used by the smearing function.
+
+"""
+function load_density_of_states(src::Group)
+    # Todo:
+    #   - This currently returns units of eV for energy and 1/(eV.V_unit_cell) for DoS.
+    return (
+        read(src, "Data/DoS/values"),
+        read(src, "Data/DoS/energies"),
+        read(src, "Data/DoS/broadening"))
+end
 
 
 # These functions exist to support backwards compatibility with previous database structures.

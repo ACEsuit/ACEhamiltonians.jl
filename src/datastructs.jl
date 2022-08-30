@@ -2,8 +2,8 @@ module DataSets
 using ACEhamiltonians
 using LinearAlgebra: norm
 using JuLIP: Atoms
-using ACEhamiltonians.MatrixManipulation: BlkIdx
-using ACEhamiltonians.States: reflect
+using ACEhamiltonians.MatrixManipulation: BlkIdx, _distance_mask
+using ACEhamiltonians.States: reflect, _get_states, _neighbours, _locate_minimum_image, _locate_target_image
 
 import ACEhamiltonians.Parameters: ison
 
@@ -14,7 +14,7 @@ import ACEhamiltonians.Parameters: ison
 # `AbstractFittingDataSet` based structures contain all data necessary to perform a fit. 
 abstract type AbstractFittingDataSet end
 
-export DataSet, filter_sparse, filter_bond_distance
+export DataSet, filter_sparse, filter_bond_distance, get_dataset, AbstractFittingDataSet
 
 """
     DataSet(values, blk_idxs, states)
@@ -171,6 +171,9 @@ function filter_bond_distance(dataset::AbstractFittingDataSet, distance::Abstrac
     return dataset[[norm(i[1].rr0) <= distance for i in dataset.states]]
 end
 
+
+
+
 # ╭──────────┬───────────╮
 # │ DataSets │ Factories │
 # ╰──────────┴───────────╯
@@ -178,4 +181,87 @@ end
 # of `DataSet` entities. The `get_dataset` methods will be implemented once the `Basis`
 # structures have been implemented.
 
+
+# This is just a reimplementation of `filter_idxs_by_bond_distance` that allows for `blocks`
+# to get filtered as well
+function _filter_bond_idxs(blocks, block_idxs::BlkIdx, distance::AbstractFloat, atoms::Atoms, images)
+    let mask = _distance_mask(block_idxs::BlkIdx, distance::AbstractFloat, atoms::Atoms, images) 
+        return blocks[:, :, mask], block_idxs[:, mask]
+    end
 end
+
+
+
+"""
+# Todo
+ - This could be made more performant.
+"""
+function _filter_sparse(values, block_idxs, tolerance)
+    mask = vec(any(abs.(values) .>= tolerance, dims=(1,2)))
+    return values[:, :, mask], block_idxs[:, mask]
+end
+
+
+"""
+
+# Arguments
+- `matrix`:
+- `atoms`:
+- `basis`:
+- `basis_def`:
+- `tolerance`:
+- `filter_bonds`:
+
+"""
+function get_dataset(
+    matrix::AbstractArray, atoms::Atoms, basis::Basis, basis_def,
+    images::Union{Matrix, Nothing}=nothing;
+    tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=false)
+
+    if ndims(matrix) == 3 && isnothing(images)
+        throw("`images` must be provided when provided with a real space `matrix`.")
+    end
+
+    # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
+    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def)
+
+    # If gathering off-site data and `filter_bonds` is `true` then remove data-points
+    # associated with interactions between atom pairs whose bond-distance exceeds the
+    # cutoff as specified by the bond envelope. This prevents having to construct states
+    # (which is an expensive process) for interactions which will just be deleted later
+    # on. Enabling this can save a non-trivial amount of time and memory. 
+    if !ison(basis) && filter_bonds
+        blocks, block_idxs = _filter_bond_idxs(
+            blocks, block_idxs, envelope(basis).r0cut, atoms, images) 
+    end
+
+    if !isnothing(tolerance) # Filter out sparse sub-blocks; but only if instructed to 
+        blocks, block_idxs = _filter_sparse(blocks, block_idxs, tolerance)
+    end
+
+    # Construct states for each of the sub-blocks.
+    if ison(basis)
+        # For on-site states the cutoff radius is provided; this results in redundant
+        # information being culled here rather than later on; thus saving on memory.
+        states = _get_states(block_idxs, atoms; r=radial(basis).R.ru)
+    else
+        # For off-site states the basis' bond envelope must be provided.
+        states = _get_states(block_idxs, atoms, envelope(basis), images)
+    end
+
+    # Construct and return the requested DataSet object
+    dataset = DataSet(blocks, block_idxs, states)
+
+    return dataset
+end
+
+ 
+end
+# Notes
+# - The matrix and array versions of `get_dataset` could easily be combined.
+# - The `get_dataset` method is likely to suffer from type instability issues as it is
+#   unlikely that Julia will know ahead of time whether the `DataSet` structure returned
+#   will contain on or off-states states; each having different associated structures.
+#   Thus type ambiguities in the `Basis` structures should be alleviated.
+
+
