@@ -115,7 +115,7 @@ using HDF5  # ← Can be removed once support for old HDF5 formats is dropped
 #   - The unit information provided in the HDF5 databases should be made use of once
 #     a grand consensus as to what internal units should be used.
 
-export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition, load_density_of_states
+export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition, load_density_of_states, load_fermi_level
 
 
 # Booleans stored by python are interpreted as Int8 by Julia rather than as booleans. Thus
@@ -290,6 +290,13 @@ load_overlap_gamma(src::Group) = read(src["Data/S_gamma"])
 # Todo: add unit conversion to `load_overlap_gamma`
 
 """
+    load_density_of_states(src)
+
+Load the density of states associated with the target system.  
+
+# Arguments
+- `src::Group`: top level HDF5 `Group` of the target system for which the density of
+  states is to be returned.
 
 # Returns
 - `values::Vector`: density of states.
@@ -305,6 +312,25 @@ function load_density_of_states(src::Group)
         read(src, "Data/DoS/values"),
         read(src, "Data/DoS/energies"),
         read(src, "Data/DoS/broadening"))
+end
+
+
+"""
+    load_fermi_level(src)
+
+Load the calculated Fermi level (chemical potential).
+
+# Arguments
+- `src::Group`: top level HDF5 `Group` of the target system for which the fermi level is
+  to be returned.
+
+# Returns
+- `fermi_level::AbstractFloat`: the fermi level.
+"""
+function load_fermi_level(src)
+  # Todo:
+  #   - This really should make use of unit attribute that is provided. 
+  return read(src, "Data/fermi_level")
 end
 
 
