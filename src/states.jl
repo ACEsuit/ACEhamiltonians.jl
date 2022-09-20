@@ -214,8 +214,8 @@ function get_state(
     # is not the case then must more work is required elsewhere in the code. 
     @assert envelope.λ == 0.0 "Non-zero envelope λ values are not supported" 
 
-    # Neighbour list cutoff distance; accounting for distances being relative relative to
-    # atom `i` rather than the bond's mid-point. 
+    # Neighbour list cutoff distance; accounting for distances being relative to atom `i`
+    # rather than the bond's mid-point.
     r = sqrt((envelope.r0cut + envelope.zcut)^2 + envelope.rcut^2)
 
     # Neighbours list construction (about atom `i`)
@@ -248,25 +248,29 @@ function get_state(
     # vectors so they're relative to the bond's midpoint and not atom `i`.
     offset =  rr0 / 2.0
 
-    # Construct the `BondState` objects for the environmental atoms; i.e. where `bond=false`.
-    env_states = Vector{BondState{typeof(rr0), Bool}}(undef, length(vecs_no_bond))
-    
+    # `BondState` entity vector 
+    states = Vector{BondState{typeof(rr0), Bool}}(undef, length(vecs_no_bond) + 1)
+
+    # Construct the bond vector state; i.e where `bond=true`
+    states[1] = BondState(rr0/2.0, rr0, true)
+
+    # Construct the environmental atom states; i.e. where `bond=false`.
     for k=1:length(vecs_no_bond)
         # Offset the vectors as needed and guard against erroneous positions.
         vec = _guard_position(vecs_no_bond[k] - offset, rr0, i, j)
-        env_states[k] = BondState{typeof(rr0), Bool}(vec, rr0, false)
+        states[k+1] = BondState{typeof(rr0), Bool}(vec, rr0, false)
     end
     
-    # Cull states outside of the bond envelope. A double filter is required as the
-    # inbuilt filter operation deviates from standard julia behaviour.
-    env_states = Base.filter(x -> filter(envelope, x), env_states)
-    # This line accounts for much of the run time and could do being optimised.
-
-    # Construct the `BondState` representing the bond vector itself; i.e. `bond=true`.
-    # and return it along with the other environmental `BondState` entities.
-    return [BondState(rr0/2.0, rr0, true); env_states]
+    # Cull states outside of the bond envelope using the envelope's filter operator. This
+    # task is performed manually here in an effort to reduce run time and memory usage.
+    @views mask = _inner_evaluate.(Ref(envelope), states[2:end]) .!= 0.0
+    @views n = sum(mask) + 1
+    @views states[2:n] = states[2:end][mask]
+    
+    return states[1:n]
 
 end
+
 
 
 # Commonly one will need to collect multiple states rather than single states on their
@@ -274,63 +278,69 @@ end
 # use only until they can be polished up. 
 
 """
-    _get_states(blk_idxs, atoms, envelope[, images])
+    _get_states(block_idxs, atoms, envelope[, images])
 
 Get the states describing the environments about a collection of bonds as defined by the
-block index list `blk_idxs`. This is effectively just a fancy wrapper for `get_state'.
+block index list `block_idxs`. This is effectively just a fancy wrapper for `get_state'.
 
 # Arguments
-- `blk_idxs`: atomic index matrix in which the first & second rows specify the indices of the
+- `block_idxs`: atomic index matrix in which the first & second rows specify the indices of the
   two "bonding" atoms. The third row, if present, is used to index `images` to collect
   cell in which the second atom lies.
 - `atoms`: the `Atoms` object in which that atom pair resides.
 - `envelope`: an envelope specifying the volume to consider when constructing the states.
-- `images`: image/cell translation vector look up list, only required when the `blk_idxs`
-  supplies a cell index value. Defaults to `nothing`.
+- `images`: Cell translation index lookup list, this is only relevant when `block_idxs`
+  supplies and cell index value. The cell translation index for the iᵗʰ state will be
+  taken to be `images[block_indxs[i, 3]]`.
 
 # Returns
 - `bond_states::Vector{::Vector{::BondState}}`: a vector providing the requested bond states.
-
 
 # Developers Notes
 This is currently set to private until it is cleaned up.
 
 """
-function _get_states(blk_idxs::BlkIdx, atoms::Atoms, envelope::CylindricalBondEnvelope,
-    images::Union{AbstractMatrix{I}, Nothing}=nothing) where I
+function _get_states(block_idxs::BlkIdx, atoms::Atoms{T}, envelope::CylindricalBondEnvelope,
+    images::Union{AbstractMatrix{I}, Nothing}=nothing) where {I, T}
     if isnothing(images)
-        if size(blk_idxs, 1) == 3 && any blk_idxs[3, :] != 1
+        if size(block_idxs, 1) == 3 && any block_idxs[3, :] != 1
             throw(ArgumentError("`idxs` provides non-origin cell indices but no 
             `images` argument was given!"))
         end
-        return get_state.(blk_idxs[1, :], blk_idxs[2, :], atoms, envelope)
+        return get_state.(block_idxs[1, :], block_idxs[2, :], Ref(atoms), Ref(envelope))::Vector{Vector{BondState{SVector{3, T}, Bool}}}
     else
-        # If size(blk_idxs,1) == 2, i.e. no cell index is supplied then this will error out.
-        # Thus not manual error handling is required. If images are supplied then blk_idxs
+        # If size(block_idxs,1) == 2, i.e. no cell index is supplied then this will error out.
+        # Thus not manual error handling is required. If images are supplied then block_idxs
         # must contain the image index.
-        return get_state.(blk_idxs[1, :], blk_idxs[2, :], atoms, envelope, images[blk_idxs[3, :], :])
+        # println("$(size(block_idxs[1, :])), $(size(block_idxs[2, :])), $(size())")
+        return get_state.(
+            block_idxs[1, :], block_idxs[2, :], Ref(atoms),
+            Ref(envelope), eachcol(images[:, block_idxs[3, :]]))::Vector{Vector{BondState{SVector{3, T}, Bool}}}
     end
 end
 
 
 """
-    _get_states(blk_idxs, atoms[; r=16.0])
+    _get_states(block_idxs, atoms[; r=16.0])
 
-Get states describing the environments around each atom block specified in `blk_idxs`.
-Note that `blk_idx` is assumed to contain only on-site blocks. This is just a wrapper
+Get states describing the environments around each atom block specified in `block_idxs`.
+Note that `block_idxs` is assumed to contain only on-site blocks. This is just a wrapper
 for `get_state'.
 
 # Developers Notes
 This is currently set to private until it is cleaned up.
 
 """
-function _get_states(blk_idxs::BlkIdx, atoms::Atoms; r=16.0)
-    if @views blk_idxs[1, :] != blk_idxs[2, :]
+function _get_states(block_idxs::BlkIdx, atoms::Atoms{T}; r=16.0) where T
+    if @views block_idxs[1, :] != block_idxs[2, :]
         throw(ArgumentError(
-            "The supplied `blk_idxs` represent a hetroatomic interaction. But the function 
+            "The supplied `block_idxs` represent a hetroatomic interaction. But the function 
             called is for retrieving homoatomic states."))
     end
-    return get_state.(blk_idxs[1, :], atoms; r=16.0)
+    # Type ambiguities in the JuLIP.Atoms structure means that Julia cannot determine the
+    # function's return type; specifically the value type of the static vector. Thus some
+    # pseudo type hard coding must be done here.
+    return get_state.(block_idxs[1, :], (atoms,); r=r)::Vector{Vector{AtomState{SVector{3, T}}}}
 end
 
 
@@ -387,8 +397,12 @@ Index of the closest `j` neighbour accounting for periodic boundary conditions.
 # Notes
 If multiple minimal vectors are found, then the first one will be returned. 
 
+# Todo
+- This will error out when the cutoff distance is lower than the bond distance. While such
+  an occurrence is unlikely in smaller cells it will no doubt occur in larger ones.
+
 """
-function _locate_minimum_image(j::I, idxs::AbstractVector{I}, vecs::AbstractVector{<:AbstractVector{F}})::I where {F<:AbstractFloat, I<:Integer}
+function _locate_minimum_image(j::Integer, idxs::AbstractVector{<:Integer}, vecs::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     # Locate all entries in the neighbour list that correspond to atom `j`
     js = findall(==(j), idxs)
     # Identify which image of atom `j` is closest
@@ -488,6 +502,6 @@ function _inner_evaluate(env::BondEnvelope, state::BondState)
     else
         return _evaluate_env(env, state)
     end
- end
+end
 
 end

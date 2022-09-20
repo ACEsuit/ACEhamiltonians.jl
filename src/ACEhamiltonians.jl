@@ -18,6 +18,8 @@ two s-shells and one p-shell.
 """
 BasisDef = Dict{I, Vector{I}} where I<:Integer
 
+include("common.jl")
+@reexport using ACEhamiltonians.Common
 
 include("io.jl")
 @reexport using ACEhamiltonians.DatabaseIO
@@ -31,6 +33,15 @@ include("data.jl")
 include("states.jl")
 @reexport using ACEhamiltonians.States
 
+include("basis.jl")
+@reexport using ACEhamiltonians.Bases
+
+include("models.jl")
+@reexport using ACEhamiltonians.Models
+
+include("datastructs.jl")
+@reexport using ACEhamiltonians.DataSets
+
 include("struc_setting.jl")
 @reexport using ACEhamiltonians.Structure
 
@@ -40,11 +51,20 @@ include("dataproc.jl")
 include("fit.jl")
 @reexport using ACEhamiltonians.Fitting
 
+include("fitting.jl")
+@reexport using ACEhamiltonians.Fitting2
+
+include("predicting.jl")
+@reexport using ACEhamiltonians.Predicting
+
 include("predict.jl")
 @reexport using ACEhamiltonians.Predict
 
 include("dictionary.jl")
 @reexport using ACEhamiltonians.Dictionary
+
+include("properties.jl")
+@reexport using ACEhamiltonians.Properties
 
 include("tools.jl")
 

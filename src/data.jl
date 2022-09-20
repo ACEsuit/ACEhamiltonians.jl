@@ -1,10 +1,12 @@
 module MatrixManipulation
+using LinearAlgebra: norm
 using ACEhamiltonians
 using JuLIP: Atoms
 
 export BlkIdx, atomic_block_idxs, repeat_atomic_block_idxs, filter_on_site_idxs,
        filter_off_site_idxs, filter_upper_idxs, filter_lower_idxs, get_sub_blocks,
-       set_sub_blocks!, get_blocks, set_blocks!, locate_and_get_sub_blocks
+       filter_idxs_by_bond_distance, set_sub_blocks!, get_blocks, set_blocks!,
+       locate_and_get_sub_blocks
 
 # ╔═════════════════════╗
 # ║ Matrix Manipulation ║
@@ -291,6 +293,40 @@ for removing duplicate data in some cases. (blocks on the diagonal are retained)
 """
 filter_lower_idxs(block_idxs::BlkIdx) = block_idxs[:, block_idxs[1, :] .≥ block_idxs[2, :]]
 
+"""
+    filter_idxs_by_bond_distance(block_idxs, distance, atoms[, images])
+
+Filters out atomic-blocks associated with interactions between paris of atoms that are
+separated by a distance greater than some specified cutoff.
+
+
+# Arguments
+- `block_idx::BlkIdx`: block index matrix holding the off-site atom-block indices that
+   are to be filtered. 
+- `distance::AbstractFloat`: maximum bond distance; atom blocks representing interactions
+   between atoms that are more than `distance` away from one another will be filtered out.
+- `atoms::Atoms`: system in which the specified blocks are located.
+- `images::Matrix{<:Integer}`: cell translation index lookup list, this is only relevant
+   when `block_idxs` supplies and cell index value. The cell translation index for the iᵗʰ
+   state will be taken to be `images[block_indxs[i, 3]]`.
+
+# Returns
+- `filtered_block_idx::BlkIdx`: a copy of `block_idx` in which all interactions associated
+   with interactions separated by a distance greater than `distance` have been filtered out.
+
+# Notes
+It is only appropriate to use this method to filter `block_idx` instance in which all
+indices pertain to off-site atom-blocks.
+
+"""
+function filter_idxs_by_bond_distance(
+    block_idxs::BlkIdx, distance::AbstractFloat, atoms::Atoms,
+    images::Union{Nothing, AbstractMatrix{<:Integer}}=nothing)
+    
+    let mask = _distance_mask(block_idxs::BlkIdx, distance::AbstractFloat, atoms::Atoms, images)
+        return block_idxs[:, mask]
+    end
+end
 
 # ╭─────────────────────┬─────────────────╮
 # │ Matrix Manipulation │ Data Assignment │
@@ -657,5 +693,36 @@ function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z, s_i, s_j, at
     block_idxs = repeat_atomic_block_idxs(block_idxs, 1)
     return get_sub_blocks(matrix, block_idxs, s_i, s_j, atoms, basis_def), block_idxs
 end
+
+
+
+# ╭─────────────────────┬─────────────────────────────────────────╮
+# │ Matrix Manipulation │ BlkIdx:Miscellaneous Internal Functions │
+# ╰─────────────────────┴─────────────────────────────────────────╯
+
+# This function is tasked with constructing the boolean mask used to filter out atom-blocks
+# associated with interactions between pairs of atoms separated by a distance greater than
+# some specified cutoff. Note that this is intended for internal use only and is primarily
+# used by the `filter_idxs_by_bond_distance` method.
+function _distance_mask(
+    block_idxs::BlkIdx, distance::AbstractFloat, atoms::Atoms,
+    images::Union{Nothing, AbstractMatrix{<:Integer}}=nothing)
+
+    if isnothing(images)
+        l⃗ = ([1.0 1.0 1.0] * atoms.cell)'
+        mask = Vector{Bool}(undef, size(block_idxs, 2))
+        for i=1:size(block_idxs, 2)
+            mask[i] = norm(_fold.(atoms.X[block_idxs[2, i]] - atoms.X[block_idxs[1, i]], l⃗)) <= distance 
+        end
+    else
+        shift_vectors = collect(eachrow(images' * atoms.cell))
+        mask = norm.(atoms.X[block_idxs[2, :]] - atoms.X[block_idxs[1, :]] + shift_vectors[block_idxs[3, :]]) .<= distance
+    end
+    return mask
+end
+
+# Internal method used exclusively by _distance_mask. 
+_fold(x, a) = min(abs(x), a - abs(x))
+
 
 end
