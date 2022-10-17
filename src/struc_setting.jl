@@ -2,8 +2,9 @@ module Structure
 
 using ACE
 using ACE: PolyTransform, SphericalMatrix, PIBasis, SymmetricBasis,
-           SimpleSparseBasis, Utils.RnYlm_1pbasis, CylindricalBondEnvelope, 
+           SimpleSparseBasis, Utils.RnYlm_1pbasis, # CylindricalBondEnvelope, 
            Categorical1pBasis
+using ACEatoms
 
 import ACEhamiltonians.Parameters: ison
 
@@ -106,17 +107,25 @@ struct OnsiteBasis
    basis::SymmetricBasis
 end
 
-function OnsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2)
+function OnsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2; species = nothing)
    # Parameters for basis
    r0 = 2.5
    rin = 0.5 * r0
 
-   B1p = RnYlm_1pbasis(; maxdeg = maxdeg, r0 = r0, trans = PolyTransform(1, 1/r0^2), rcut = rcut, rin = rin)
+   # B1p = 
    Bsel = SimpleSparseBasis(ord, maxdeg)
    φ = SphericalMatrix(L1, L2; T = ComplexF64)
-   pibasis = PIBasis(B1p, Bsel; property = φ, isreal = false)
-   basis = SymmetricBasis(φ, pibasis)
-
+   
+   if !isnothing(species)
+      B1p = Species1PBasis(species) * RnYlm_1pbasis(; maxdeg = maxdeg, r0 = r0, trans = PolyTransform(1, 1/r0^2), rcut = rcut, rin = rin)
+      # B1p = ACEatoms.ZμRnYlm_1pbasis(; species = species, maxdeg=maxdeg, r0 = r0, trans = PolyTransform(1, 1/r0^2),#Bsel = Bsel, 
+      #                           rin = rin, rcut = rcut)
+   else 
+      B1p = RnYlm_1pbasis(; maxdeg = maxdeg, r0 = r0, trans = PolyTransform(1, 1/r0^2), rcut = rcut, rin = rin)
+   end
+   # ACE.init1pspec!(B1p, Bsel)
+   basis = SymmetricBasis(φ, B1p, Bsel)
+   
    return OnsiteBasis(rcut,maxdeg,ord,basis)
 end
 
@@ -147,7 +156,13 @@ function filter_offsite_be(bb,maxdeg,λ_n=.5,λ_l=.5)
    return ( sum( b.be == :bond for b in bb ) == 1 )
 end
 
-function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5)
+# using NamedTupleTools
+# import NamedTupleTools: namedtuple
+# namedtuple(name::Tuple{}) = namedtuple(names::Tuple{Vararg{Symbol, N}}) where N
+
+ACE.get_spec(basis::Species1PBasis, i::Integer) = (μ = basis.zlist.list[i],)
+ACE.get_spec(basis::Species1PBasis) = ACE.get_spec.(Ref(basis), 1:length(basis))
+function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5, λ_l=.5; species = nothing)
    # Environment parameters for basis
    r0 = 2.5
    rin = 0.5 * r0
@@ -157,6 +172,10 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    env = ACE.CylindricalBondEnvelope(rcut,renv,renv)
 
    Bsel = SimpleSparseBasis(ord+1, maxdeg)
+   # #ACE.SparseBasis(; maxorder=ord, p = 2, default_maxdeg = maxdeg) 
+   # 
+   # φ = SphericalMatrix(L1, L2; T = ComplexF64)
+   # # basis = ACE.Utils.SymmetricBond_basis(φ, env, Bsel; )
 
    # oneparticle basis
    RnYlm = RnYlm_1pbasis(; maxdeg = maxdeg, r0 = r0, trans = PolyTransform(1, 1/r0^2), rcut = sqrt(renv^2+(rcut+renv)^2), rin = rin, pcut = 2)
@@ -165,6 +184,10 @@ function OffsiteBasis(rcut::Float64, maxdeg::Int64, ord::Int64, L1, L2, λ_n=.5,
    #ACE.init1pspec!(B1p_env, Bsel)
    B1p = ACE.Categorical1pBasis([:bond, :env]; varsym = :be, idxsym=:be) * B1p_env
    #ACE.init1pspec!(B1p, Bsel)
+   
+   if !isnothing(species)
+      B1p = Species1PBasis(species) * B1p
+   end
    
    # SymmetricBasis
    φ = SphericalMatrix(L1, L2; T = ComplexF64)
@@ -192,7 +215,7 @@ struct OnModelWhole <: TBModelWhole
    data::Data
    params::Params
    type::String
-   ModelSS::Vector{TBModel}
+   ModelSS::Vector{TBModel} ##TODO: should be extended to Vector{Vector{TBModel}}
    ModelSP::Vector{TBModel}
    ModelSD::Vector{TBModel}
    ModelPP::Vector{TBModel}
