@@ -6,8 +6,8 @@ using ACE: PositionState, BondEnvelope, filter, State, CylindricalBondEnvelope
 export get_atoms, get_HSR, data_read
 
 # TODO: must have existed somewhere...
-const Z2Sym = Dict( 0 => :X, 1 => :H, 2 => :He, 5 => :F, 6 => :C, 8 => :O, 13 => :Al)
-const Sym2Z = Dict( :X => 0, :H => 1, :He => 2, :F => 5, :C => 6, :O => 8, :Al => 13)
+const Z2Sym = Dict( 0 => :X, 1 => :H, 2 => :He, 6 => :C, 8 => :O, 9 => :F, 13 => :Al, 16 => :Si)
+const Sym2Z = Dict( :X => 0, :H => 1, :He => 2, :C => 6, :O => 8, :F => 9, :Al => 13, :Si => 16)
 
 ## Data read
 
@@ -169,14 +169,6 @@ function data_preprocess(data,L1,L2,index::Vector{Int64})
    Hsub, Ssub = hs2hssub(H,S,n_atom,L1,L2,index)
    nlist = JuLIP.neighbourlist(at,20.0)
    Rs = [ get_state_on(nlist,at,i) for i = 1:length(index) ]
-   # Rs = []# Vector{Vector{ACEatoms.AtomState{Float64}}}([])
-   # for i in index 
-   #    neigh_i = JuLIP.Potentials.neigsz(nlist,at,i)
-   #    # append!(Rs, [ State(rr = neigh_i[2][j], Zc = Z2Sym[at.Z[i].z], mu = Z2Sym[neigh_i[3][j]]) for j = 1:length(neigh_i[2])])
-   #    Rs = [Rs, [ ACEatoms.AtomState{Float64}(mu = neigh_i[3][j], mu0 = at.Z[i], rr = neigh_i[2][j]) for j = 1:length(neigh_i[2]) ]]
-   #    # append!(Rs, [ ACEatoms.AtomState{Float64}(mu = neigh_i[3][j], mu0 = at.Z[i], rr = neigh_i[2][j]) for j = 1:length(neigh_i[2]) ] |> vec)
-   #    # append!(Rs, [ ACEatoms.AtomState{Float64}(mu = neigh_i[3][j], mu0 = at.Z[i], rr = neigh_i[2][j]) for j = 1:length(neigh_i[2]) ])
-   # end 
    
    return Hsub,Ssub,Rs
 end
