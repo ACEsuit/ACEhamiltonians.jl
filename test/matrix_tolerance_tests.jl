@@ -217,7 +217,6 @@ end
             for (block, name) in zip(data, off_site_block_names)
                 H_block, Rs = block[1], block[3]
                 
-                @show name
                 if name == "dd" # Hack to deal with type inconsistency issues
                     H_block = reshape.(H_block, 1, 1)
                 end
