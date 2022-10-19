@@ -8,9 +8,6 @@ using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
 using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
 
-# using ACEhamiltonians.DataIO: load_hamiltonian_gamma, load_hamiltonian_gamma
-# using ACEhamiltonians.DataManipulation: get_states, locate_blocks, upper_blocks, off_site_blocks, gather_matrix_blocks
-
 export fit!
 
 # Once the bond inversion issue has been resolved the the redundant models will no longer
@@ -19,7 +16,6 @@ export fit!
 #   - Remove inverted state condition in single model `fit!` method.
 #   - `_assemble_ls` should take `Basis` entities.
 #   - Remove inverted state condition from the various `predict` methods.
-
 
 # Todo:
 #   - Need to make sure that the acquire_B! function used by ACE does not actually modify the
@@ -85,7 +81,7 @@ end
 
 """
 """
-function _assemble_ls(basis::SymmetricBasis, data::T, zero_mean::Bool=false) where T<:AbstractFittingDataSet
+function _assemble_ls(basis::SymmetricBasis, data::T, nonzero_mean::Bool=false) where T<:AbstractFittingDataSet
     # This will be rewritten once the other code has been refactored.
 
     # Should `A` not be constructed using `acquire_B!`?
@@ -102,7 +98,7 @@ function _assemble_ls(basis::SymmetricBasis, data::T, zero_mean::Bool=false) whe
     Y = [data.values[:, :, i] for i in 1:n₃]
 
     # Calculate the mean value x̄
-    if !zero_mean && n₁ ≡ n₂ && ison(data) 
+    if nonzero_mean && n₁ ≡ n₂ && ison(data) 
         x̄ = mean(diag(mean(Y)))*I(n₁)
     else
         x̄ = zeros(n₁, n₂)
@@ -118,27 +114,27 @@ end
 ###################
 # Fitting Methods #
 ###################
-# Todo:
-#   - Add documentation.
-#   - Check that the relevant data exists before trying to extract it; i.e. don't bother
-#     trying to gather carbon on-site data from an H2 system.
-#   - Currently the basis set definition is loaded from the first system under the
-#     assumption that it is constant across all systems. However, this will break down
-#     if different species are present in each system.
-#   - The approach currently taken limits io overhead by reducing redundant operations.
-#     However, this will likely use considerably more memory.
 
 
+"""
+    fit!(basis, data;[ nonzero_mean])
 
-# Basis fitting
-function fit!(basis::T₁, data::T₂, zero_mean::Bool=false) where {T₁<:Basis, T₂<:AbstractFittingDataSet}
+Fits a specified model with the supplied data.
+
+# Arguments
+- `basis`: basis that is to be fitted.
+- `data`: data that the basis is to be fitted to.
+- `nonzero_mean::Bool`: setting this flag to true enables a non-zero mean to be
+    used.
+"""
+function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false) where {T₁<:Basis, T₂<:AbstractFittingDataSet}
     # Lambda term should not be hardcoded to 1e-7!
 
     # Get the basis function's scaling factor (?)
     Γ = Diagonal(scaling(basis.basis, 2))
 
     # Setup the least squares problem
-    Φ, Y, x̄ = _assemble_ls(basis.basis, data, zero_mean)
+    Φ, Y, x̄ = _assemble_ls(basis.basis, data, nonzero_mean)
     
     # Assign the mean value to the basis set
     basis.mean .= x̄
@@ -149,7 +145,7 @@ function fit!(basis::T₁, data::T₂, zero_mean::Bool=false) where {T₁<:Basis
     # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON>>>>>>>>>>
     if T₁<:AnisoBasis
         Γ = Diagonal(scaling(basis.basis_i, 2))
-        Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', zero_mean)
+        Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', nonzero_mean)
         basis.mean_i .= x̄
         basis.coefficients_i .= collect(solve_ls(Φ, Y, 1e-7, Γ, "LSQR"))
     end
@@ -157,26 +153,6 @@ function fit!(basis::T₁, data::T₂, zero_mean::Bool=false) where {T₁<:Basis
 
     nothing
 end
-
-
-
-# """
-
-# # Notes
-
-
-# # Developer's Notes
-# This `Model` level fitting function only allows for data to be provided via HDF5 groups.
-# Furthermore, no fine grained control over the fitting data is provided as users can only
-# specify which matrices are trained. As opposed to allowing for data to be fed in manually
-# or for a list of permitted blocks to be specified. However, new fine-grained fit methods
-# will be introduced once the bond state asymmetry issues have been resolved.  
-# """
-# function fit!(
-#     model::Model, source::Vector, target::Symbol; tolerance::AbstractFloat=0.0)
-
-    
-# end
 
 
 # Convenience function for appending data to a dictionary
@@ -188,20 +164,40 @@ function _append_data!(dict, key, value)
     end
 end
 
-# Model fitting
-# This should be cleaned up so that it can be abstracted and the fitting operation 
-# passed off to ACEfit.
 
-# Notes:
-#   - enabling `filter_bonds` will increase run time but decrease memory usage.
+"""
+    fit!(model, systems, target[; tolerance, filter_bonds, recenter])
 
-# Todo:
-#   - it would likely be faster just to paste all of DataSet objects into a vector and
-#     combine them via a custom merge statement. This would likely be much faster. 
+Fits a specified model to the supplied data.
+
+# Arguments
+- `model::Model`: Model to be fitted.
+- `systems::Vector{Group}`: HDF5 groups storing data with which the model should
+    be fitted.
+- `target::Symbol`: a symbol indicating which matrix should be fitted. This may be either
+    `H` or `S`.
+- `tolerance::AbstractFloat`: only sub-blocks where at least one value is greater than
+    or equal to `tolerance` will be fitted. This argument permits spars blocks to be
+    ignored.
+- `filter_bonds::Bool`: Ignores interactions beyond the specified cutoff.
+- `recenter::Bool`: Enabling this will re-wrap atomic coordinates to be consistent with
+    the geometry layout used internally by FHI-aims. This should be used whenever loading
+    real-space matrices generated by FHI-aims.
+
+"""
 function fit!(
     model::Model, systems::Vector{Group}, target::Symbol;
-    tolerance::F=0.0, filter_bonds::Bool=false) where F<:AbstractFloat
+    tolerance::F=0.0, filter_bonds::Bool=true, recenter::Bool=false) where F<:AbstractFloat
     
+    # Todo:
+    #   - Check that the relevant data exists before trying to extract it; i.e. don't bother
+    #     trying to gather carbon on-site data from an H2 system.
+    #   - Currently the basis set definition is loaded from the first system under the
+    #     assumption that it is constant across all systems. However, this will break down
+    #     if different species are present in each system.
+    #   - The approach currently taken limits io overhead by reducing redundant operations.
+    #     However, this will likely use considerably more memory.
+
     # Section 1: Gather the data
 
     get_matrix = Dict(  # Select an appropriate function to load the target matrix
@@ -212,8 +208,9 @@ function fit!(
 
     # Loop over the specified systems
     for system in systems
+
         # Load the required data from the database entry
-        matrix, atoms = get_matrix(system), load_atoms(system)
+        matrix = get_matrix(system), load_atoms(system; recentre=recentre)
         images = ndims(matrix) == 2 ? nothing : load_cell_translations(system)
         
         # Loop over the on site bases and collect the appropriate data
@@ -243,8 +240,7 @@ function fit!(
         end         
     end
 
-    # This should be a single loop not two loops
-    # Fit the on-site models
+    # Fit the on/off-site models
     for (basis, data_set) in fitting_data
         if length(data_set) ≡ 0
             @warn "Cannot fit $(basis.id): no matching data-points found (filters may be too aggressive)"

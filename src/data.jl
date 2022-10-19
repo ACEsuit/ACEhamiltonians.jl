@@ -1,5 +1,5 @@
 module MatrixManipulation
-using LinearAlgebra: norm
+using LinearAlgebra: norm, pinv
 using ACEhamiltonians
 using JuLIP: Atoms
 
@@ -709,10 +709,12 @@ function _distance_mask(
     images::Union{Nothing, AbstractMatrix{<:Integer}}=nothing)
 
     if isnothing(images)
-        l⃗ = ([1.0 1.0 1.0] * atoms.cell)'
+        l = atoms.cell'
+        l_inv = pinv(l)
+        # l⃗ = ([1.0 1.0 1.0] * atoms.cell)'
         mask = Vector{Bool}(undef, size(block_idxs, 2))
         for i=1:size(block_idxs, 2)
-            mask[i] = norm(_fold.(atoms.X[block_idxs[2, i]] - atoms.X[block_idxs[1, i]], l⃗)) <= distance 
+            mask[i] = norm(_wrap(atoms.X[block_idxs[2, i]] - atoms.X[block_idxs[1, i]], l, l_inv)) <= distance
         end
     else
         shift_vectors = collect(eachrow(images' * atoms.cell))
@@ -722,7 +724,9 @@ function _distance_mask(
 end
 
 # Internal method used exclusively by _distance_mask. 
-_fold(x, a) = min(abs(x), a - abs(x))
-
+function _wrap(x_vec, l, l_inv)
+    x_vec_frac = l_inv * x_vec
+    return l * (x_vec_frac .- round.(x_vec_frac))
+end
 
 end
