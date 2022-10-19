@@ -216,7 +216,8 @@ end
 function get_dataset(
     matrix::AbstractArray, atoms::Atoms, basis::Basis, basis_def,
     images::Union{Matrix, Nothing}=nothing;
-    tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=false)
+    tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=false,
+    focus::Union{Vector{<:Integer}, Nothing}=nothing)
 
     if ndims(matrix) == 3 && isnothing(images)
         throw("`images` must be provided when provided with a real space `matrix`.")
@@ -224,6 +225,12 @@ function get_dataset(
 
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
     blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def)
+
+    if !isnothing(focus)
+        mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
+        block_idxs = block_idxs[:, mask]
+        blocks = blocks[:, :, mask]
+    end
 
     # If gathering off-site data and `filter_bonds` is `true` then remove data-points
     # associated with interactions between atom pairs whose bond-distance exceeds the
@@ -257,6 +264,7 @@ end
 
  
 end
+
 # Notes
 # - The matrix and array versions of `get_dataset` could easily be combined.
 # - The `get_dataset` method is likely to suffer from type instability issues as it is

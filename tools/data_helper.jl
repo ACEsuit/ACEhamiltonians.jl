@@ -1,9 +1,9 @@
-using ACEhamiltonians, BlockArrays, HDF5
+using ACEhamiltonians, BlockArrays, HDF5, LinearAlgebra
 using JuLIP; Atoms
 using ACEhamiltonians.DatabaseIO: _clean_bool
 
 
-
+@warn "Do not use this unless you know what you are doing! (currently broken)"
 
 function _block_sizes(atoms, basis_def)
     orbs_per_z = Dict(k=>sum(2v .+ 1) for (k, v) in basis_def)
@@ -241,13 +241,15 @@ function generate_map(atoms::Atoms, images::AbstractMatrix, matrices::T...) wher
 
     # Construct a dictionary which maps a cell coordinate to its index in the real-space
     # matrix. For example `matrix[:, : cell_to_idx[[-1, 0, 2]]]` should return the slice
-    # of `matrix` corresponding to che cell [-1, 0, 2].
+    # of `matrix` corresponding to the cell [-1, 0, 2].
     cell_to_idx = Dict(cell=>i for (i, cell) in enumerate(eachcol(images)))
 
     # Get the indices of all non-zero atom-blocks. It is important that only blocks that
     # are truly zero get filtered out here, as opposed to those which are mearley close
     # to zero. This filtering operation is performed to prevent the formation of redundant
-    # cells which frequently crop up during the remapping process.
+    # cells which frequently crop up during the remapping process. The `block_indices`
+    # variable is a matrix where each column is a vector of the form:
+    #   [atomic_index_atom_1, atomic_index_atom_2, cell_x, cell_y, cell_z]
     block_indices = get_block_indices(length(atoms), images)
 
     if length(matrices) ≠ 0
@@ -267,7 +269,7 @@ function generate_map(atoms::Atoms, images::AbstractMatrix, matrices::T...) wher
     
     
     # Create a copy of the block-indices and remap it to account for the fractional
-    # coordinate domain shift. Specifically that of (-0.5, 5.0] → (0.0, 1.0], where
+    # coordinate domain shift. Specifically that of (-0.5, 0.5] → (0.0, 1.0], where
     # the former is used by FHI-aims and the latter by ACEhamiltonians. If an atom's
     # fractional coordinate exceeds 0.5 then it is wrapped. Thus the shortest periodic
     # distance between a pair of atoms may switch between crossing and not-crossing a
@@ -361,9 +363,7 @@ function remap_database(path)
 
                     # Set the remapped tag to 'true'
                     attributes(node)["remapped"] = true
-
                 end
-                
             end
         end
     end

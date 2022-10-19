@@ -2,7 +2,7 @@ module Bases
 
 using ACE
 using ACE: SymmetricBasis, SphericalMatrix, Utils.RnYlm_1pbasis, SimpleSparseBasis,
-           CylindricalBondEnvelope, Categorical1pBasis, cutoff_radialbasis
+           CylindricalBondEnvelope, Categorical1pBasis, cutoff_radialbasis, cutoff_env
 using ACEbase
 import ACEbase: read_dict, write_dict
 using ACEbase.ObjectPools: VectorPool
@@ -376,7 +376,8 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
     discriminator = Categorical1pBasis([true, false]; varsym=:bond, idxsym=:bond)
 
     # The basis upon which the above entities act.
-    RnYlm = RnYlm_1pbasis(maxdeg=deg, r0=e_cutᵢₙ, rcut=cutoff_radialbasis(env))
+    RnYlm = RnYlm_1pbasis(maxdeg=deg, r0=e_cutᵢₙ, rcut=cutoff_env(env), trans=PolyTransform(1, 1/e_cutᵢₙ^2))
+
     
     return SymmetricBasis(
         SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
