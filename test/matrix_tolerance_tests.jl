@@ -86,9 +86,9 @@ function predict_values(H_osb, Rs, on_site=True)
 
     # Create the initial basis entity.
     if on_site
-        basis = OnsiteBasis(20.0, 8, 2, ℓ₁, ℓ₂)
+        basis = OnsiteBasis(20.0, 5, 2, ℓ₁, ℓ₂; species = [:Al, ])
     else
-        basis = OffsiteBasis(20.0, 8, 2, ℓ₁, ℓ₂)
+        basis = OffsiteBasis(20.0, 5, 2, ℓ₁, ℓ₂; species = [:Al, ])
     end
 
     # Calculate the Tychonov regularisation term as per equation
@@ -151,6 +151,8 @@ end
                 # Collect the on-site sub-blocks of the Hamiltonian matrix & the
                 # positions of the neighbouring atoms.
                 H_osb, Rs = block[1], block[3]
+                
+                @show name
 
                 # Hack to deal with type inconsistency issues
                 if name == "dd" 

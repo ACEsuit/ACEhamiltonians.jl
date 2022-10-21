@@ -1,9 +1,13 @@
 module DataProcess
 
-using HDF5, JuLIP, StaticArrays, LinearAlgebra
+using HDF5, JuLIP, StaticArrays, LinearAlgebra, ACEatoms
 using ACE: PositionState, BondEnvelope, filter, State, CylindricalBondEnvelope
 
 export get_atoms, get_HSR, data_read
+
+# TODO: must have existed somewhere...
+const Z2Sym = Dict( 0 => :X, 1 => :H, 2 => :He, 6 => :C, 8 => :O, 9 => :F, 13 => :Al, 16 => :Si)
+const Sym2Z = Dict( :X => 0, :H => 1, :He => 2, :C => 6, :O => 8, :F => 9, :Al => 13, :Si => 16)
 
 ## Data read
 
@@ -164,17 +168,29 @@ function data_preprocess(data,L1,L2,index::Vector{Int64})
 
    Hsub, Ssub = hs2hssub(H,S,n_atom,L1,L2,index)
    nlist = JuLIP.neighbourlist(at,20.0)
-   Rs = [PositionState.(Vector(JuLIP.Potentials.neigsz(nlist,at,i)[2])) for i in index]
-
+   Rs = [ get_state_on(nlist,at,i) for i = 1:length(index) ]
+   
    return Hsub,Ssub,Rs
 end
-## Offsite data_preprocess
 
-function get_bond(at,i,j)
+function get_state_on(nlist,at::JuLIP.Atoms,i::Int64)
+   neigh_i = JuLIP.Potentials.neigsz(nlist,at,i)
+   return [ ACEatoms.AtomState{Float64}(mu = neigh_i[3][j], mu0 = at.Z[i], rr = neigh_i[2][j]) for j = 1:length(neigh_i[2]) ]
+end
+
+## Offsite data_preprocess - NOTE: MIC is used here
+# const AtomOffsiteState = State{NamedTuple{(:mu, :mu0, :mu1, :rr, :rr0, :be), Tuple{AtomicNumber, AtomicNumber, AtomicNumber, SVector{3, Float64}, SVector{3, Float64}, Symbol}}}
+const AtomOffsiteState = State{(:mu, :mu0, :mu1, :rr, :rr0, :be), Tuple{AtomicNumber, AtomicNumber, AtomicNumber, SVector{3, Float64}, SVector{3, Float64}, Symbol}}
+# const AtomOffsiteState{T} = State{NamedTuple{(:mu, :mu01, :rr, :rr0, :be), Tuple{AtomicNumber, Tuple{AtomicNumber, AtomicNumber}, SVector{3, T}, SVector{3, T}, Symbol}}}
+## TODO: for mu0 and mu1, is it better to change them to (mu0,mu1) <: Tuple{AtomicNumber,AtomicNumber}? Also, for env state, this is not needed?
+
+function get_bond(at,i,j;MIC=true)
    nlist = JuLIP.neighbourlist(at,20.0)
    neigh_i = JuLIP.Potentials.neigsz(nlist,at,i)
    idx = findall(isequal(j),neigh_i[1])
-   idx = idx[findmin(norm.(neigh_i[2][idx]))[2]]
+   if MIC
+      idx = idx[findmin(norm.(neigh_i[2][idx]))[2]]
+   end
    return idx
 end
 
@@ -186,10 +202,10 @@ function get_state(at,i::Int64,j::Int64,env::BondEnvelope)
    neigh_i = JuLIP.Potentials.neigsz(nlist,at,i)
    idx = get_bond(at,i,j)
    rr = neigh_i[2][idx]
-   st = State(rr = rr, rr0 = rr, be=:bond)
+   st = AtomOffsiteState(mu = at.Z[j], mu0 = at.Z[i], mu1 = at.Z[j], rr = rr, rr0 = rr, be=:bond)
    #st = [ State(rr = neigh_i[2][j], rr0 = neigh_i[2][j], be=:bond) for j in set]
    for (jj, rj) in enumerate(neigh_i[2])
-      st_temp = State(rr = rj, rr0 = rr, be=:env)
+      st_temp = AtomOffsiteState(mu = neigh_i[3][jj], mu0 = at.Z[i], mu1 = at.Z[j], rr = rj, rr0 = rr, be=:env)
       if rj≠rr && filter(env,st_temp)
          st = [st; st_temp]
       end
@@ -292,5 +308,16 @@ function data_read(file_name::Vector{String}, index::Vector{T}) where{T}
       @warn("Possibly wrong index type")
    end
 end
+
+## map from a whole configuration to an atom list -> showing what types of atoms are there in this config
+at2zlist(at::JuLIP.Atoms) = unique(at.Z)
+# NOTE: If we need Integer rather than atomic number then 
+# [ Z2Sym[unique(at.Z)[i].z] for i = 1:length(unique(at.Z)) ]
+
+## map from an atom list to model list - showing types of onsite models needed
+zlist2mlist_on(zlist) = Dict([(zlist[i],i) for i = 1:length(zlist)])
+
+## map from an atom list to model list - showing types of offsite models needed 
+zlist2mlist_off(zlist) = Dict([((zlist[i],zlist[j]),(i,j)) for i = 1:length(zlist) for j = 1:length(zlist)])
 
 end

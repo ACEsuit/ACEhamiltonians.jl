@@ -4,12 +4,15 @@ using LinearAlgebra, StaticArrays, Statistics, LowRankApprox, IterativeSolvers, 
 using ACE: evaluate, evaluate_d, PositionState, ACEConfig
 using ACEhamiltonians.Structure, ACEhamiltonians.DataProcess
 using ACE: PIBasis, get_spec
+using ACEatoms:AtomicNumber
 import ACE.scaling
+import Base.abs
 
 export params2wmodels
 
 ## Assemble A, Y; read blocks type by data directly;
 #  read all Y at one time (e.g., 9 s-s blocks, 6 s-p blocks etc)
+abs(a::AtomicNumber) = 0 # a.z
 
 function evaluateval_real(Aval)
    L1,L2 = size(Aval[1])
