@@ -102,6 +102,7 @@ using ACEhamiltonians
 using HDF5: Group, h5open
 using JuLIP: Atoms
 using HDF5  # ← Can be removed once support for old HDF5 formats is dropped
+using LinearAlgebra: pinv
 
 # Developers Notes:
 #   - The functions within this module are mostly just convenience wrappers for the HDF5
@@ -124,6 +125,13 @@ _clean_bool(bool::I) where I<:Integer = Bool(bool)
 _clean_bool(bool::Vector{<:Integer}) = convert(Vector{Bool}, bool)
 _clean_bool(bool) = bool
 
+
+function _recentre!(x, l, l_inv)
+    x[:] = l_inv' * x .- 1E-8
+    x[:] = l' * (x - round.(x) .+ 1E-8)
+    nothing 
+end
+
 """
     load_atoms(src)
 
@@ -133,12 +141,16 @@ Instantiate a `JuLIP.Atoms` object from an HDF5 `Group`.
 # Arguments
 - `src::Group`: top level HDF5 `Group` of the target system whose `Atoms` object is to be
   returned.
+- `recentre:Bool`: By default, atoms are assumed to span the fractional coordinate domain
+  [0.0, 1.0). Setting `recentre` to `true` will remap atomic positions to the fractional
+  coordinate domain of [-0.5, 0.5). This is primarily used when interacting with real-space
+  matrices produced by the FHI-aims code base.
 
 # Returns
 - `atoms::Atoms`: atoms object representing the structure of the target system.
 
 """
-function load_atoms(src::Group)
+function load_atoms(src::Group; recentre=false)
     # Developers Notes:
     #   - Currently non-molecular/cluster systems are assumed to be fully periodic
     #     along each axis if no `pbc` condition is explicitly specified.
@@ -153,9 +165,16 @@ function load_atoms(src::Group)
     species, positions = read(src["atomic_numbers"]), read(src["positions"])
 
     if haskey(src, "lattice")  # If periodic
-        cell = collect(read(src["lattice"])')
+        l = collect(read(src["lattice"])')
+        if recentre
+            l_inv = pinv(l)
+            for x in eachcol(positions)
+                _recentre!(x, l, l_inv)
+            end
+        end
+
         pbc = haskey(src, "pbc") ? _clean_bool(read(src["pbc"])) : true
-        return Atoms(; Z=species, X=positions, cell=cell, pbc=pbc)
+        return Atoms(; Z=species, X=positions, cell=l, pbc=pbc)
     else  # If molecular/cluster
         return Atoms(; Z=species, X=positions)
     end
@@ -353,7 +372,7 @@ function _load_old_atoms(path::String; groupname=nothing)
                         pbc = [true, true, true])
         return atoms
     end
- end
+end
 
 
 # Save methods are unlikely to be useful at this point in time.

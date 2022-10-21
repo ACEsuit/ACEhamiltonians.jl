@@ -196,7 +196,7 @@ end
 
 """
 """
-function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, AbstractMatrix}; kwargs...)
+function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, AbstractMatrix}=nothing; kwargs...)
     # Pre-build neighbour list to avoid edge case which can degrade performance
     _preinitialise_neighbour_list(atoms, model)
 

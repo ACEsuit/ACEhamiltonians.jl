@@ -405,6 +405,11 @@ If multiple minimal vectors are found, then the first one will be returned.
 function _locate_minimum_image(j::Integer, idxs::AbstractVector{<:Integer}, vecs::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     # Locate all entries in the neighbour list that correspond to atom `j`
     js = findall(==(j), idxs)
+    if length(js) == 0
+        # See the "Todo" section in the docstring.
+        error("Neighbour not in range")
+    end
+
     # Identify which image of atom `j` is closest
     return js[findmin(norm, vecs[js])[2]]
 end
