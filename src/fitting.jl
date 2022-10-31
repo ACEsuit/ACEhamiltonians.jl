@@ -24,7 +24,7 @@ export fit!
 #     no errors caused when importing it.
 #   - Remove hard coded matrix type from the predict function.
 
-function Ctran(l::Int64,m::Int64,μ::Int64)
+function _ctran(l::Int64,m::Int64,μ::Int64)
    if abs(m) ≠ abs(μ)
       return 0
    elseif abs(m) == 0
@@ -40,14 +40,14 @@ function Ctran(l::Int64,m::Int64,μ::Int64)
    end
 end
 
-Ctran(l::Int64) = sparse(Matrix{ComplexF64}([ Ctran(l,m,μ) for m = -l:l, μ = -l:l ]))
+_ctran(l::Int64) = sparse(Matrix{ComplexF64}([ _ctran(l,m,μ) for m = -l:l, μ = -l:l ]))
 
 function _evaluate_real(Aval)
    L1,L2 = size(Aval[1])
    L1 = Int((L1-1)/2)
    L2 = Int((L2-1)/2)
-   C1 = Ctran(L1)
-   C2 = Ctran(L2)
+   C1 = _ctran(L1)
+   C2 = _ctran(L2)
    return real([ C1 * Aval[i].val * C2' for i = 1:length(Aval)])
 end
 
