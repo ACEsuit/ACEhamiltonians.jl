@@ -3,7 +3,7 @@ module Fitting
 using LinearAlgebra, StaticArrays, Statistics, LowRankApprox, IterativeSolvers, Distributed, DistributedArrays, SparseArrays
 using ACEfit: linear_solve, SKLEARN_ARD
 using ACEhamiltonians.Structure, ACEhamiltonians.DataProcess
-using ACE: PIBasis, get_spec
+using ACE: PIBasis, get_spec, ACEConfig
 using ACEatoms:AtomicNumber
 import ACE.scaling
 import Base.abs
