@@ -1,9 +1,10 @@
 module Fitting
 
 using LinearAlgebra, StaticArrays, Statistics, LowRankApprox, IterativeSolvers, Distributed, DistributedArrays, SparseArrays
+using ACE: evaluate, evaluate_d, PositionState, ACEConfig
 using ACEfit: linear_solve, SKLEARN_ARD
 using ACEhamiltonians.Structure, ACEhamiltonians.DataProcess
-using ACE: PIBasis, get_spec, ACEConfig
+using ACE: PIBasis, get_spec
 using ACEatoms:AtomicNumber
 import ACE.scaling
 import Base.abs
