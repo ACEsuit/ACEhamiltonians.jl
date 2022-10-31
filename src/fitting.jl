@@ -1,5 +1,5 @@
 module Fitting2
-using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra
+using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra, SparseArrays
 using HDF5: Group
 using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
@@ -42,7 +42,7 @@ end
 
 Ctran(l::Int64) = dropzeros([ Ctran(l,m,μ) for m = -l:l, μ = -l:l ])
 
-function _evaluateval_real(Aval)
+function _evaluate_real(Aval)
    L1,L2 = size(Aval[1])
    L1 = Int((L1-1)/2)
    L2 = Int((L2-1)/2)
