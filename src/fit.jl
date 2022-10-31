@@ -1,7 +1,7 @@
 module Fitting
 
-using LinearAlgebra, StaticArrays, Statistics, LowRankApprox, IterativeSolvers, Distributed, DistributedArrays
-using ACE: evaluate, evaluate_d, PositionState, ACEConfig
+using LinearAlgebra, StaticArrays, Statistics, LowRankApprox, IterativeSolvers, Distributed, DistributedArrays, SparseArrays
+using ACEfit: linear_solve, SKLEARN_ARD
 using ACEhamiltonians.Structure, ACEhamiltonians.DataProcess
 using ACE: PIBasis, get_spec
 using ACEatoms:AtomicNumber
@@ -168,6 +168,8 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
       res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
       close(Ad), close(Yd)
       return res
+   elseif Solver == "ARD"
+      return linear_solve(SKLEARN_ARD(), A, Y)
    elseif Solver == "NaiveSolver"
       return real((A'*A) \ (A'*Y))
    end
