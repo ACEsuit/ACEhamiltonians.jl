@@ -40,7 +40,7 @@ function Ctran(l::Int64,m::Int64,μ::Int64)
    end
 end
 
-Ctran(l::Int64) = dropzeros([ Ctran(l,m,μ) for m = -l:l, μ = -l:l ])
+Ctran(l::Int64) = sparse(Matrix{ComplexF64}([ Ctran(l,m,μ) for m = -l:l, μ = -l:l ]))
 
 function _evaluate_real(Aval)
    L1,L2 = size(Aval[1])
