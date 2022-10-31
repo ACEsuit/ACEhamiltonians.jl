@@ -15,54 +15,81 @@ export params2wmodels
 #  read all Y at one time (e.g., 9 s-s blocks, 6 s-p blocks etc)
 abs(a::AtomicNumber) = 0 # a.z
 
+function ctran(l::Int64,m::Int64,μ::Int64)
+   if abs(m) ≠ abs(μ)
+      return 0
+   elseif abs(m) == 0
+      return 1
+   elseif m > 0 && μ > 0
+      return 1/sqrt(2)
+   elseif m > 0 && μ < 0
+      return (-1)^m/sqrt(2)
+   elseif m < 0 && μ > 0
+      return  - im * (-1)^m/sqrt(2)
+   else
+      return im/sqrt(2)
+   end
+end
+
+ctran(l::Int64) = sparse(Matrix{ComplexF64}([ ctran(l,m,μ) for m = -l:l, μ = -l:l ]))
+
 function evaluateval_real(Aval)
    L1,L2 = size(Aval[1])
    L1 = Int((L1-1)/2)
    L2 = Int((L2-1)/2)
-
-   # allocate Aval_real
-   Aval_real = [zeros(ComplexF64,2L1+1,2L2+1) for i = 1:length(Aval)]
-   # reconstruct real A
-   # TODO: I believe that there must exist a matrix form... But I will keep it for now...
-   for i=1:length(Aval)
-      A = Aval[i].val
-      for k=1:2L1+1, j=1:2L2+1
-         if k < L1+1 && j < L2+1
-            Aval_real[i][k,j] = 1/2 * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
-                                         -(-1)^(j-L2-1)*A[k,2+2L2-j]
-                                         +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
-         elseif k < L1+1 && j == L2+1
-            Aval_real[i][k,j] = im/sqrt(2) * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j] )
-         elseif k < L1+1 && j > L2+1
-            Aval_real[i][k,j] = im/2 * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
-                                          +(-1)^(j-L2-1)*A[k,2+2L2-j]
-                                          -(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
-         elseif k == L1+1 && j < L2+1
-            Aval_real[i][k,j] = im/sqrt(2) * ( - A[k,j] + (-1)^(j-L2-1)*A[k,2+2L2-j] )
-         elseif k == L1+1 && j == L2+1
-            Aval_real[i][k,j] = A[k,j]
-         elseif k == L1+1 && j > L2+1
-            Aval_real[i][k,j] = 1/sqrt(2) * ( A[k,j] + (-1)^(j-L2-1)*A[k,2+2L2-j] )
-         elseif k > L1+1 && j < L2+1
-            Aval_real[i][k,j] = im/2 * ( - A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
-                                          +(-1)^(j-L2-1)*A[k,2+2L2-j]
-                                          +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
-         elseif k > L1+1 && j == L2+1
-            Aval_real[i][k,j] = 1/sqrt(2) * ( A[k,j] + (-1)^(k-L1-1)*A[2+2L1-k,j] )
-         elseif k > L1+1 && j > L2+1
-            Aval_real[i][k,j] = 1/2 * ( A[k,j] + (-1)^(k-L1-1)*A[2+2L1-k,j]
-                                          +(-1)^(j-L2-1)*A[k,2+2L2-j]
-                                          +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
-         end
-      end
-   end
-   #return Aval_real
-   if norm(Aval_real - real(Aval_real))<1e-12
-      return real(Aval_real)
-   else
-      error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
-   end
+   C1 = ctran(L1)
+   C2 = ctran(L2)
+   return real([ C1 * Aval[i].val * C2' for i = 1:length(Aval)])
 end
+
+# function evaluateval_real(Aval)
+#    L1,L2 = size(Aval[1])
+#    L1 = Int((L1-1)/2)
+#    L2 = Int((L2-1)/2)
+
+#    # allocate Aval_real
+#    Aval_real = [zeros(ComplexF64,2L1+1,2L2+1) for i = 1:length(Aval)]
+#    # reconstruct real A
+#    # TODO: I believe that there must exist a matrix form... But I will keep it for now...
+#    for i=1:length(Aval)
+#       A = Aval[i].val
+#       for k=1:2L1+1, j=1:2L2+1
+#          if k < L1+1 && j < L2+1
+#             Aval_real[i][k,j] = 1/2 * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
+#                                          -(-1)^(j-L2-1)*A[k,2+2L2-j]
+#                                          +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
+#          elseif k < L1+1 && j == L2+1
+#             Aval_real[i][k,j] = im/sqrt(2) * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j] )
+#          elseif k < L1+1 && j > L2+1
+#             Aval_real[i][k,j] = im/2 * ( A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
+#                                           +(-1)^(j-L2-1)*A[k,2+2L2-j]
+#                                           -(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
+#          elseif k == L1+1 && j < L2+1
+#             Aval_real[i][k,j] = im/sqrt(2) * ( - A[k,j] + (-1)^(j-L2-1)*A[k,2+2L2-j] )
+#          elseif k == L1+1 && j == L2+1
+#             Aval_real[i][k,j] = A[k,j]
+#          elseif k == L1+1 && j > L2+1
+#             Aval_real[i][k,j] = 1/sqrt(2) * ( A[k,j] + (-1)^(j-L2-1)*A[k,2+2L2-j] )
+#          elseif k > L1+1 && j < L2+1
+#             Aval_real[i][k,j] = im/2 * ( - A[k,j] - (-1)^(k-L1-1)*A[2+2L1-k,j]
+#                                           +(-1)^(j-L2-1)*A[k,2+2L2-j]
+#                                           +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
+#          elseif k > L1+1 && j == L2+1
+#             Aval_real[i][k,j] = 1/sqrt(2) * ( A[k,j] + (-1)^(k-L1-1)*A[2+2L1-k,j] )
+#          elseif k > L1+1 && j > L2+1
+#             Aval_real[i][k,j] = 1/2 * ( A[k,j] + (-1)^(k-L1-1)*A[2+2L1-k,j]
+#                                           +(-1)^(j-L2-1)*A[k,2+2L2-j]
+#                                           +(-1)^(k+j-L1-L2)*A[2+2L1-k,2+2L2-j] )
+#          end
+#       end
+#    end
+#    #return Aval_real
+#    if norm(Aval_real - real(Aval_real))<1e-12
+#       return real(Aval_real)
+#    else
+#       error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
+#    end
+# end
 
 function assemble_ls(bos, Hsubs, Rs, i, j, flag = "on"; type_mean = 1)
    L1,L2 = size(Hsubs[1][1])
