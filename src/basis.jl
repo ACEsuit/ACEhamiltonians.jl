@@ -69,24 +69,6 @@ struct IsoBasis{T₁<:SymmetricBasis, T₂, T₃, T₄} <: Basis
 
 end
 
-# struct IsoBasis{T} <: Basis{T}
-#     basis::SymmetricBasis
-#     id
-#     coefficients
-#     mean
-
-#     function IsoBasis(basis, id)
-#         t = ACE.valtype(basis)
-#         F = real(t.parameters[5])
-#         new{F}(basis, id, zeros(F, length(basis)), zeros(F, size(zero(t))))
-#     end
-
-#     function IsoBasis(basis, id, coefficients, mean)
-#         type = real(ACE.valtype(basis).parameters[5])
-#         new{type}(basis, id, coefficients, mean)
-#     end
-
-# end
 
 """
 
@@ -123,29 +105,6 @@ struct AnisoBasis{T₁<:SymmetricBasis, T₂<:SymmetricBasis, T₃, T₄, T₅, 
         new{T₁, T₂, T₃, T₄, T₅, T₆, T₇}(basis, basis_i,  id, coefficients, coefficients_i, mean, mean_i)
     end
 end
-
-# struct AnisoBasis{T} <: Basis{T}
-#     basis
-#     basis_i
-#     id
-#     coefficients
-#     coefficients_i
-#     mean
-#     mean_i
-
-#     function AnisoBasis(basis, basis_i, id)
-#         t₁, t₂ = ACE.valtype(basis), ACE.valtype(basis_i)
-#         F = real(t₁.parameters[5])
-#         new{F}(
-#             basis, basis_i,  id, zeros(F, length(basis)), zeros(F, length(basis_i)),
-#             zeros(F, size(zero(t₁))), zeros(F, size(zero(t₂))))
-#     end
-
-#     function AnisoBasis(basis, basis_i, id, coefficients, coefficients_i, mean, mean_i)
-#         type = real(ACE.valtype(basis).parameters[5])
-#         new{type}(basis, basis_i,  id, coefficients, coefficients_i, mean, mean_i)
-#     end
-# end
 
 
 Basis(basis, id) = IsoBasis(basis, id)

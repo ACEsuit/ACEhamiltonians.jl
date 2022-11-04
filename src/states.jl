@@ -8,7 +8,20 @@ using ACE: AbstractState, CylindricalBondEnvelope, BondEnvelope, _evaluate_bond,
 import ACEhamiltonians.Parameters: ison
 import ACE: _inner_evaluate
 
+# using ACE.SphericalHarmonics: SphericalCoords
+# import ACE.SphericalHarmonics: cart2spher
+
 export BondState, AtomState, reflect, get_state
+
+# function cart2spher(r⃗::AbstractVector)
+#     @assert length(r⃗) == 3
+#     φ = atan(r⃗[2], r⃗[1])
+#     θ = atan(r⃗[3], hypot(r⃗[1], r⃗[2]))
+#     sinφ, cosφ = sincos(φ)
+#     sinθ, cosθ = sincos(θ)
+#     return SphericalCoords(norm(r⃗), cosφ, sinφ, cosθ, sinθ)
+# end
+
 
 # ╔════════╗
 # ║ States ║
@@ -180,7 +193,10 @@ Construct a state representing the environment about the "bond" between atoms `i
   constructing the state. This must be centred at the bond's midpoint; i.e. `envelope.λ≡0`.
 - `image::Optional{Vector}`: a vector specifying the image in which atom `j`
   should reside; i.e. the cell translation vector. This defaults to `nothing` which will
-  result in the closets periodic image of `j` being used. 
+  result in the closets periodic image of `j` being used.
+- `r::AbstractFloat`: this can be used to manually specify the cutoff distance used when
+  building the neighbour list. This will override the locally computed value for `r` and
+  is primarily used to aid debugging.  
 
 # Returns
 - `state::Vector{::BondState}`: state objects representing the environment about the bond
@@ -202,7 +218,7 @@ distance for neighbour list construction is handled automatically.
 """
 function get_state(
     i::I, j::I, atoms::Atoms, envelope::CylindricalBondEnvelope,
-    image::Union{AbstractVector{I}, Nothing}=nothing) where {I<:Integer}
+    image::Union{AbstractVector{I}, Nothing}=nothing; r::Union{Nothing, <:AbstractFloat}=nothing) where {I<:Integer}
 
     # Todo:
     #   - Combine the neighbour lists of atom i and j rather than just the former. This
@@ -215,8 +231,10 @@ function get_state(
     @assert envelope.λ == 0.0 "Non-zero envelope λ values are not supported" 
 
     # Neighbour list cutoff distance; accounting for distances being relative to atom `i`
-    # rather than the bond's mid-point.
-    r = sqrt((envelope.r0cut + envelope.zcut)^2 + envelope.rcut^2)
+    # rather than the bond's mid-point
+    if isnothing(r)
+        r = sqrt((envelope.r0cut + envelope.zcut)^2 + envelope.rcut^2)
+    end
 
     # Neighbours list construction (about atom `i`)
     idxs, vecs, cells = _neighbours(i, atoms, r)
@@ -271,8 +289,6 @@ function get_state(
 
 end
 
-
-
 # Commonly one will need to collect multiple states rather than single states on their
 # own. Hence the `get_state[s]` functions. These functions have been tagged for internal
 # use only until they can be polished up. 
@@ -312,7 +328,6 @@ function _get_states(block_idxs::BlkIdx, atoms::Atoms{T}, envelope::CylindricalB
         # If size(block_idxs,1) == 2, i.e. no cell index is supplied then this will error out.
         # Thus not manual error handling is required. If images are supplied then block_idxs
         # must contain the image index.
-        # println("$(size(block_idxs[1, :])), $(size(block_idxs[2, :])), $(size())")
         return get_state.(
             block_idxs[1, :], block_idxs[2, :], Ref(atoms),
             Ref(envelope), eachcol(images[:, block_idxs[3, :]]))::Vector{Vector{BondState{SVector{3, T}, Bool}}}
@@ -473,26 +488,30 @@ invariant to permutation for instances where the atom lies **exactly** at the mi
 
 """
 function _guard_position(vec::T, rr0::T, i::I, j::I; cutoff=0.05) where {I<:Integer, T}
-    # If the an environmental atom lies too close to the origin it must be offset to avoid
-    # errors. While this introduces noise, it is better than not being able to fit. A
-    # better solution should be found where and if possible. 
-    vec_norm = norm(vec)
+    #################################DEBUGGING
+    return vec
+
+    # # If the an environmental atom lies too close to the origin it must be offset to avoid
+    # # errors. While this introduces noise, it is better than not being able to fit. A
+    # # better solution should be found where and if possible. Rounding is needed to stabilise
+    # # the behaviour of this function.
+    # vec_norm = round(norm(vec), digits=8)
     
-    # If the vector is outside of the cutoff region then no action is required 
-    if vec_norm >= cutoff
-        return vec
-    # If the atom is inside of the cutoff region, but not at exactly at the mid-point then
-    # scale the vector so that it lies outside of the cutoff region.
-    elseif 0 < vec_norm
-        return normalize(vec) * cutoff
-    # If the atom lies exactly at the bond origin, then offset it along the bond vector.
-    elseif vec_norm == 0 
-        # Shift vector is in direction of the atom with the lowest atomic index, or if both
-        # are the same then the first atom. This helps to make the offset a little more
-        # consistent and reproducible.
-        o = i <= j ? -one(I) : one(I)
-        return normalize(rr0) * (cutoff * o)
-    end
+    # # If the vector is outside of the cutoff region then no action is required 
+    # if vec_norm >= cutoff
+    #     return vec
+    # # If the atom is inside of the cutoff region, but not at exactly at the mid-point then
+    # # scale the vector so that it lies outside of the cutoff region.
+    # elseif 0 < vec_norm
+    #     return normalize(vec) * cutoff
+    # # If the atom lies exactly at the bond origin, then offset it along the bond vector.
+    # elseif vec_norm == 0 
+    #     # Shift vector is in direction of the atom with the lowest atomic index, or if both
+    #     # are the same then the first atom. This helps to make the offset a little more
+    #     # consistent and reproducible.
+    #     o = i <= j ? -one(I) : one(I)
+    #     return normalize(rr0) * (cutoff * o)
+    # end
 end
 
 

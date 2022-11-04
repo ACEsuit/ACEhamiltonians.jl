@@ -10,9 +10,6 @@ using ACEhamiltonians.Fitting2: _evaluate_real
 export predict, predict!, cell_translations
 
 
-
-
-
 """
     cell_translations(atoms, cutoff)
 
@@ -38,7 +35,8 @@ cell [i, j, k] is present then the cell [-i, -j, -k] will also be present.
 function cell_translations(atoms::Atoms{T}, cutoff) where T<:AbstractFloat
 
     l⃗, x⃗ = atoms.cell, atoms.X
-    n_atoms::Int = size(x⃗, 2)
+    # n_atoms::Int = size(x⃗, 2)
+    n_atoms::Int = size(x⃗, 1)
     
     # Identify how many cell images can fit within the cutoff distance.
     aₙ, bₙ, cₙ = convert.(Int, cld.(cutoff, norm.(eachrow(l⃗))))
@@ -207,7 +205,7 @@ function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, Abstra
     end
 end
 
-function _predict(model, atoms, cell_indices; oai=false)
+function _predict(model, atoms, cell_indices)
 
     basis_def = model.basis_definition
     n_orbs = number_of_orbitals(atoms, basis_def)
@@ -218,9 +216,8 @@ function _predict(model, atoms, cell_indices; oai=false)
     # Mirror index map array required by `_reflect_block_idxs!`
     mirror_idxs = _mirror_idxs(cell_indices)
 
-    # If the on-site blocks are to be approximated as a diagonal then set the diagonal
-    # of the first/origin cell to 1.0.
-    if oai 
+    # The on-site blocks of overlap matrices are approximated as identity matrix.
+    if model.label ≡ "S"
         matrix[1:n_orbs+1:n_orbs^2] .= 1.0
     end
 
@@ -267,7 +264,7 @@ function _predict(model, atoms, cell_indices; oai=false)
             
             # Evaluate on-site terms for homo-atomic interactions; but only if not instructed
             # to approximate the on-site sub-blocks as identify matrices.
-            if species₁ ≡ species₂ && !oai
+            if species₁ ≡ species₂ && model.label ≠ "S"
                 # Get the on-site basis and construct the on-site states
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
@@ -289,7 +286,7 @@ function _predict(model, atoms, cell_indices; oai=false)
 end
 
 
-function _predict(model, atoms; oai=false)
+function _predict(model, atoms)
 
     # See comments in the real space matrix version of `predict` more information. 
     basis_def = model.basis_definition
@@ -297,9 +294,9 @@ function _predict(model, atoms; oai=false)
 
     matrix = zeros(n_orbs, n_orbs)
 
-    # If the on-site blocks are to be approximated as a diagonal then set the diagonal
-    # of the matrix to 1.0.
-    if oai 
+    # If constructing an overlap matrix then the on-site blocks can just be set to
+    # an identify matrix.
+    if model.label ≡ "S" 
         matrix[1:n_orbs+1:end] .= 1.0
     end
     
@@ -336,7 +333,7 @@ function _predict(model, atoms; oai=false)
             end
 
             
-            if species₁ ≡ species₂ && !oai
+            if species₁ ≡ species₂ && model.label ≠ "S"
                 
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
@@ -356,9 +353,6 @@ function _predict(model, atoms; oai=false)
     
     return matrix    
 end
-
-
-
 
 
 # ╭───────────────────────────╮

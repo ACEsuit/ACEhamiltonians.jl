@@ -16,6 +16,7 @@ export Model
 # ╚═══════╝
 
 struct Model
+
     on_site_bases
     off_site_bases
 
@@ -23,13 +24,15 @@ struct Model
     off_site_parameters::OffSiteParaSet
     basis_definition
 
+    label::String
+
     function Model(on_site_bases, off_site_bases,
-        on_site_parameters::OnSiteParaSet, off_site_parameters::OffSiteParaSet, basis_definition)
-        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters, basis_definition)
+        on_site_parameters::OnSiteParaSet, off_site_parameters::OffSiteParaSet, basis_definition, label::String)
+        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters, basis_definition, label)
     end
     
     function Model(basis_definition::BasisDef, on_site_parameters::OnSiteParaSet,
-                   off_site_parameters::OffSiteParaSet)
+                   off_site_parameters::OffSiteParaSet, label::String)
         # Developers Notes
         # This makes the assumption that all z₁-z₂-ℓ₁-ℓ₂ interactions are represented
         # by the same model.
@@ -83,7 +86,7 @@ struct Model
             end
         end
 
-    new(on_sites, off_sites, on_site_parameters, off_site_parameters, basis_definition)
+    new(on_sites, off_sites, on_site_parameters, off_site_parameters, basis_definition, label)
     end
 
 end
@@ -131,7 +134,8 @@ function ACEbase.write_dict(m::Model)
         "on_site_parameters"=>write_dict(m.on_site_parameters),
         "off_site_parameters"=>write_dict(m.off_site_parameters),
         "basis_definition"=>Dict(k=>write_dict(v) for (k, v) in m.basis_definition),
-        "bases_hashes"=>bases_hashes)
+        "bases_hashes"=>bases_hashes,
+        "label"=>m.label)
     
     return dict
 end
@@ -160,7 +164,8 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
         Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_bases"]),
         read_dict(dict["on_site_parameters"]),
         read_dict(dict["off_site_parameters"]),
-        Dict(ensure_int(k)=>read_dict(v) for (k, v) in dict["basis_definition"]))
+        Dict(ensure_int(k)=>read_dict(v) for (k, v) in dict["basis_definition"]),
+        dict["label"])
 end
 
 

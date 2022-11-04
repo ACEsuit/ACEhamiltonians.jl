@@ -2,6 +2,8 @@ module ACEhamiltonians
 
 using JuLIP, JSON, HDF5, Reexport
 
+using ACE.SphericalHarmonics: SphericalCoords
+import ACE.SphericalHarmonics: cart2spher
 
 export BasisDef
 
@@ -17,6 +19,17 @@ This declares hydrogen atoms as having only a single s-shell and carbon atoms as
 two s-shells and one p-shell.
 """
 BasisDef = Dict{I, Vector{I}} where I<:Integer
+
+
+function cart2spher(r⃗::AbstractVector)
+    @assert length(r⃗) == 3
+    φ = atan(r⃗[2], r⃗[1])
+    θ = atan(r⃗[3], hypot(r⃗[1], r⃗[2]))
+    sinφ, cosφ = sincos(φ)
+    sinθ, cosθ = sincos(θ)
+    return SphericalCoords(norm(r⃗), cosφ, sinφ, cosθ, sinθ)
+end
+
 
 include("common.jl")
 @reexport using ACEhamiltonians.Common
