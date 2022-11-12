@@ -125,6 +125,15 @@ write_dict(V::TBModel) =
             "coeffs" => V.coeffs,
               "mean" => V.mean )
 
+              
+function deal_mean(mean)
+   if typeof(mean)<:Matrix
+      return mean
+   else
+      Mean = [ mean[j][i] for i = 1:length(mean[1]), j = 1:length(mean) ]
+   end
+ end
+
 function read_dict(::Val{:ACEhamiltonians_TBModel}, D::Dict)
 
    basis = read_dict(D["basis"])
@@ -134,12 +143,15 @@ function read_dict(::Val{:ACEhamiltonians_TBModel}, D::Dict)
    return TBModel(basis, coeffs, mean)
 
 end
-function deal_mean(mean)
-   if typeof(mean)<:Matrix
-      return mean
-   else
-      Mean = [ mean[j][i] for i = 1:length(mean[1]), j = 1:length(mean) ]
-   end
+
+function read_dict(::Val{:ACE2tb_TBModel}, D::Dict)
+
+   basis = read_dict(D["basis"])
+   coeffs = D["coeffs"]
+   mean = deal_mean(D["mean"])
+
+   return TBModel(basis, coeffs, mean)
+
 end
 
 write_dict(env::CylindricalBondEnvelope) =
@@ -187,6 +199,22 @@ function read_dict(::Val{:ACEhamiltonians_OnModelWhole}, D::Dict)
 
 end
 
+function read_dict(::Val{:ACE2tb_OnModelWhole}, D::Dict)
+
+          data = read_dict(D["data"])
+      paramset = read_dict(D["params"])
+          type = D["Type"]
+       ModelSS = read_dict.(D["ModelSS"])
+       ModelSP = read_dict.(D["ModelSP"])
+       ModelSD = read_dict.(D["ModelSD"])
+       ModelPP = read_dict.(D["ModelPP"])
+       ModelPD = read_dict.(D["ModelPD"])
+       ModelDD = read_dict.(D["ModelDD"])
+
+   return OnModelWhole(data,paramset,type,ModelSS,ModelSP,ModelSD,ModelPP,ModelPD,ModelDD)
+
+end
+
 write_dict(ModelW::OffModelWhole) =
       Dict( "__id__" => "ACEhamiltonians_OffModelWhole",
               "data" => write_dict(ModelW.data),
@@ -203,6 +231,25 @@ write_dict(ModelW::OffModelWhole) =
            "ModelDD" => write_dict.(ModelW.ModelDD) )
 
 function read_dict(::Val{:ACEhamiltonians_OffModelWhole}, D::Dict)
+
+          data = read_dict(D["data"])
+      paramset = read_dict(D["params"])
+          type = D["Type"]
+       ModelSS = read_dict.(D["ModelSS"])
+       ModelSP = read_dict.(D["ModelSP"])
+       ModelSD = read_dict.(D["ModelSD"])
+       ModelPS = read_dict.(D["ModelPS"])
+       ModelPP = read_dict.(D["ModelPP"])
+       ModelPD = read_dict.(D["ModelPD"])
+       ModelDS = read_dict.(D["ModelDS"])
+       ModelDP = read_dict.(D["ModelDP"])
+       ModelDD = read_dict.(D["ModelDD"])
+
+   return OffModelWhole(data,paramset,type,ModelSS,ModelSP,ModelSD,ModelPS,ModelPP,ModelPD,ModelDS,ModelDP,ModelDD)
+
+end
+
+function read_dict(::Val{:ACE2tb_OffModelWhole}, D::Dict)
 
           data = read_dict(D["data"])
       paramset = read_dict(D["params"])
