@@ -203,21 +203,45 @@ end
 
 
 """
+get_dataset(matrix, atoms, basis, basis_def[, images; tolerance, filter_bonds, focus])
+
+Construct and return a `DataSet` entity containing the minimal data required to fit a
+`Basis` entity.
 
 # Arguments
-- `matrix`:
-- `atoms`:
-- `basis`:
-- `basis_def`:
-- `tolerance`:
-- `filter_bonds`:
+- `matrix`: matrix from which sub-blocks are to be gathered.
+- `atoms`: atoms object representing the system to which the matrix pertains.
+- `basis`: `Basis` entity for the desired sub-block; the `id` field is used to identify
+  which sub-blocks should be gathered and how they should be gathered.
+- `basis_def`: a basis definition specifying what orbitals are present on each species.
+- `images`: cell translation vectors associated with the matrix, this is only required
+  when the `matrix` is in the three-dimensional real-space form.
 
+# Keyword Arguments
+- `tolerance`: specifying a float value will enact sparse culling in which only sub-blocks
+  with at least one element greater than the permitted tolerance will be included. This
+  is used to remove all zero, or near zero, sub-blocks. This is disabled by default.
+- `filter_bonds`: if set to `true` then only interactions within the permitted cutoff
+  distance will be returned. This is only valid off-site interactions and is disabled
+  by default. The cut-off distance is extracted from the bond envelope contained within
+  the `basis` object.
+- `focus`: the `focus` argument allows the `get_dataset` call to return only a sub-set
+  of possible data-points. If a vector of atomic indices is provided then only on/off-
+  site sub-blocks for/between those atoms will be returned; i.e. [1, 2] would return
+  on-sites 1-on, 2-on and off-sites 1-1-off, 1-2-off, 2-1-off, & 2-2-off. If a matrix
+  is provided, like so [1 2; 3 4] then only the associated off-site sub-blocks will be
+  returned, i.e. 1-2-off and 3-4-off. Note that the matrix form is only valid when
+  retrieving off-site sub-blocks.
+
+# Todo:
+ - Warn that only the upper triangle is returned and discuss how this effects "focus".
+ 
 """
 function get_dataset(
     matrix::AbstractArray, atoms::Atoms, basis::Basis, basis_def,
     images::Union{Matrix, Nothing}=nothing;
     tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=false,
-    focus::Union{Vector{<:Integer}, Nothing}=nothing)
+    focus::Union{Vector{<:Integer}, Matrix{<:Integer}, Nothing}=nothing)
 
     if ndims(matrix) == 3 && isnothing(images)
         throw("`images` must be provided when provided with a real space `matrix`.")
@@ -226,8 +250,18 @@ function get_dataset(
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
     blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def)
 
+    # Restrict the block search from "everything" to only the blocks that match the
+    # conditions specified by the `focus` argument.
     if !isnothing(focus)
-        mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
+        # Restrict to atom-blocks involving a specific subset of atoms
+        if focus isa Vector
+            mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
+        # Restrict to specific atom-blocks
+        else
+            # Only applies to off-site interactions
+            @assert !ison(basis) "matrix `filter` argument only valid for off-site interactions"
+            mask = ∈(collect(eachcol(focus))).(collect(eachcol(block_idxs[1:2, :])))
+        end
         block_idxs = block_idxs[:, mask]
         blocks = blocks[:, :, mask]
     end

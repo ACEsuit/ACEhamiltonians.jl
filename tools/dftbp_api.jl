@@ -3,11 +3,10 @@ using BlockArrays, Serialization, StaticArrays
 using LinearAlgebra: norm, diagind
 using ACEbase: read_dict, load_json
 
-using ACEhamiltonians.States: _guard_position, _inner_evaluate
+using ACEhamiltonians.States: _inner_evaluate
+
 
 # Todo:
-#   - Remove hard coding.
-#   - identify best place for occupancies to be specified.
 #   - resolve unit mess.
 
 _Bohr2Angstrom = 1/0.188972598857892E+01
@@ -22,12 +21,14 @@ macro FSE(func)
             try
                 $(func.args[2].args...)
             catch e
-                println("Error encountered in Julia-DFTB+ API")
+                println("\nError encountered in Julia-DFTB+ API")
                 for (exc, bt) in current_exceptions()
                     showerror(stdout, exc, bt)
                     println(stdout)
                 end
-                rethrow(e)
+                # The Julia thread must be explicitly terminated, otherwise the DFTB+
+                # calculation will continue.
+                exit()
             end
         end
     end
@@ -38,7 +39,7 @@ end
 _sub_block_sizes(species, basis_def) = 2basis_def[species] .+ 1
 
 function _reshape_to_block(array, species_1, species_2, basis_definition)
-    return PseudoBlockMatrix(
+    return PseudoBlockArray(
         reshape(
             array,
             number_of_orbitals(species_1, basis_definition),
@@ -123,17 +124,19 @@ end
 end
 
 @FSE function shell_occupancies!(array, species, model)
-    ########### DEBUGGING ###########
-    occupancies = Dict(
-        1=>[1.0],
-        6=>[1.0, 0.0],
-        14=>[2.0, 2.0, 2.0, 6.0, 2.0, 0.0, 0.0])[species]
-    #################################
+    if !haskey(model.meta_data, "occupancy")
+        throw(KeyError(
+            "shell_occupancies!: an \"occupancy\" key must be present in the model's
+            `meta_data` which provides the occupancies for each shell of each species."
+        ))
+    end
+
+    occupancies = model.meta_data["occupancy"][species]
+
     if length(array) ≠ length(occupancies)
-        println("shell_occupancies!: Provided array is of incorrect length.")
-        println("$(length(array)), $(length(occupancies))")
         throw(BoundsError("shell_occupancies!: Provided array is of incorrect length."))
     end
+    
     array[:] = occupancies
 
 end
@@ -167,13 +170,19 @@ function _build_bond_state(coordinates, envelope)
     # atoms.
     positions = map(_F64SV, eachcol(coordinates[:, 3:end]))
 
+    # Coordinates must be rounded to prevent stability issues associated with
+    # noise. This mostly only effects situations where atoms lie near the mid-
+    # point of a bond. 
+    positions = [round.(i, digits=8) for i in positions]
+
+
     # The rest of this function copies code directly from `states.get_state`.
     # Here, rr0 is multiplied by two as vectors provided by DFTB+ point to
     # the midpoint of the bond. ACEhamiltonians expects the bond vector and
     # to be inverted, hence the second position is taken.
-    rr0 = _F64SV(coordinates[:, 2] * 2)
+    rr0 = _F64SV(round.(coordinates[:, 2], digits=8) * 2)
     states = Vector{BondState{_F64SV, Bool}}(undef, length(positions) + 1)
-    states[1] = BondState(_F64SV(coordinates[:, 2]), rr0, true)
+    states[1] = BondState(_F64SV(round.(coordinates[:, 2], digits=8)), rr0, true)
     
     for k=1:length(positions)
         states[k+1] = BondState{_F64SV, Bool}(positions[k], rr0, false)
@@ -197,7 +206,6 @@ function build_on_site_atom_block!(block::Vector{Float64}, coordinates::Vector{F
     # Unflatten the atom-block array and convert it into a PseudoBlockMatrix
     block = _reshape_to_block(block, species[1], species[1], basis_def)
 
-
     # On-site atom block of the overlap matrix are just an identify matrix
     if model.label == "S"
         block .= 0.0
@@ -220,10 +228,6 @@ function build_on_site_atom_block!(block::Vector{Float64}, coordinates::Vector{F
             
             # Make the prediction
             predict!(sub_block, basis, state)
-
-            # if i_shell ≡ j_shell ≡ 7 && model.label ≡ "H"
-            #     serialize("subblocks_on.dat", collect(sub_block))
-            # end
 
             # Set the symmetrically equivalent block when appropriate
             if i_shell ≠ j_shell
@@ -281,13 +285,6 @@ end
             # Make the prediction
             predict!(sub_block, basis, state)
 
-            # if i_shell ≡ 5 && j_shell ≡ 6 && model.label ≡ "H"                    
-            #     _dump("subblocks_off.dat", collect(sub_block))
-            #     _dump("bond_vectors.dat", Vector(state[1].rr0))
-            #     _dump("states.dat", Vector(state))
-            #     _dump("coordinates.dat", coordinates)
-            # end
-
             if species_i ≡ species_j
                 @views predict!(block[Block(j_shell, i_shell)]', basis, reflect.(state))
             end
@@ -296,21 +293,3 @@ end
     end
 
 end
-
-
-function _dump(file_name, data)
-    file_data = isfile(file_name) ? deserialize(file_name) : Any[]
-    push!(file_data, data)
-    serialize(file_name, file_data)
-end
-
-coordinates = [0.5, 0, 0, -0.5, 0, 0, 0, 0.5, 0]
-block = zeros(17 * 17)
-species = [14, 14, 14]
-model = deserialize("Working/H_model_Si_003_fitted.bin")
-build_off_site_atom_block!(block, coordinates, species, model)
-
-s = [1, 1, 1, 3, 3, 3, 5]
-ref = PseudoBlockArray(reshape(block, 17, 17), s, s)
-
-println("Finished!")

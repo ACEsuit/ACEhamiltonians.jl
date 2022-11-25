@@ -72,7 +72,7 @@ function _evaluate_real(Aval)
         # Prefactor "scale" could be applied here as a matrix operation
     end
     #return Aval_real
-    if norm(Aval_real - real(Aval_real))<1e-12
+    if norm(Aval_real - real(Aval_real)) < 1e-12
         return real(Aval_real)
     else
         error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
@@ -199,6 +199,7 @@ function fit!(
     #     if different species are present in each system.
     #   - The approach currently taken limits io overhead by reducing redundant operations.
     #     However, this will likely use considerably more memory.
+    #   - Don't fit on-site bases for overlap matrix models.
 
     # Section 1: Gather the data
 
@@ -250,6 +251,7 @@ function fit!(
         elseif is_fitted(basis) && !refit
             @warn "Skipping $(basis.id): basis already fitted"
         else
+            println("\t- $basis [N: $(length(data_set))]")
             fit!(basis, data_set)
         end
         
@@ -257,7 +259,5 @@ function fit!(
     end
 
 end
-
-
 
 end

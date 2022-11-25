@@ -251,7 +251,7 @@ end
 
 
 function Base.show(io::IO, basis::T) where T<:Basis
-    print(io, "$(nameof(T))(id: $(basis.id), fitted: $(is_fitted(basis))")
+    print(io, "$(nameof(T))(id: $(basis.id), fitted: $(is_fitted(basis)))")
 end
 
 
@@ -262,7 +262,7 @@ end
 
 @doc raw"""
 
-    on_site_ace_basis(ℓ₁, ℓ₂, ν, deg, e_cutₒᵤₜ[, e_cutᵢₙ])
+    on_site_ace_basis(ℓ₁, ℓ₂, ν, deg, e_cutₒᵤₜ[, r0])
 
 Initialise a simple on-site `SymmetricBasis` instance with sensible default parameters.
 
@@ -279,20 +279,20 @@ then bases must be instantiated manually.
 - `deg::Integer`: maximum polynomial degree.
 - `e_cutₒᵤₜ::AbstractFloat`: only atoms within the specified cutoff radius will contribute
    to the local environment.
-- `e_cutᵢₙ::AbstractFloat`: inner cutoff radius, defaults to 2.5.
+- `r0::AbstractFloat`: scaling parameter (typically set to the nearest neighbour distances).
 
 # Returns
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
-function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, e_cutᵢₙ::F=2.5
+function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, r0::F=2.5
     ) where {I<:Integer, F<:AbstractFloat}
     # Build i) a matrix indicating the desired sub-block shape, ii) the one
     # particle Rₙ·Yₗᵐ basis describing the environment, & iii) the basis selector.
     # Then instantiate the SymmetricBasis required by the Basis structure.
     return SymmetricBasis(
         SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
-        RnYlm_1pbasis(maxdeg=deg, r0=e_cutᵢₙ, rcut=e_cutₒᵤₜ),
+        RnYlm_1pbasis(maxdeg=deg, r0=r0, rcut=e_cutₒᵤₜ),
         SimpleSparseBasis(ν, deg))
 end
 
@@ -316,7 +316,7 @@ must be manually instantiated if more fine-grained control is desired.
 - `b_cut::AbstractFloat`: cutoff distance for bonded interactions.
 - `e_cutₒᵤₜ::AbstractFloat`: radius and axial-padding of the cylindrical bond envelope that
    is used to determine which atoms impact to the bond's environment.
-- `e_cutᵢₙ::AbstractFloat`: inner cutoff radius, defaults to 2.5.
+- `r0::AbstractFloat`: scaling parameter (typically set to the nearest neighbour distances).
 - `λₙ::AbstractFloat`: ???
 - `λₗ::AbstractFloat`: ???
 
@@ -324,7 +324,7 @@ must be manually instantiated if more fine-grained control is desired.
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
-function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5., e_cutᵢₙ::F=0.05,
+function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5., r_0::F=2.5,
     λₙ::F=.5, λₗ::F=.5) where {I<:Integer, F<:AbstractFloat}
 
     # Bond envelope which controls which atoms are seen by the bond.
@@ -334,9 +334,11 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
     # bond to be treated differently to those that are just part of the environment.
     discriminator = Categorical1pBasis([true, false]; varsym=:bond, idxsym=:bond)
 
-    # The basis upon which the above entities act.
-    RnYlm = RnYlm_1pbasis(maxdeg=deg, r0=e_cutᵢₙ, rcut=cutoff_env(env), trans=PolyTransform(1, 1/e_cutᵢₙ^2))
-
+    # The basis upon which the above entities act. Note that the internal cutoff "rin" must
+    # be set to 0.0 to allow for atoms a the bond's midpoint to be observed. 
+    RnYlm = RnYlm_1pbasis(
+        maxdeg=deg, r0=r_0, rcut=cutoff_env(env),
+        trans=IdTransform(), rin=0.0)
     
     return SymmetricBasis(
         SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),

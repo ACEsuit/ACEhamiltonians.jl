@@ -15,6 +15,8 @@ export Model
 # ║ Model ║
 # ╚═══════╝
 
+# Todo:
+#   - On-site and off-site components should be optional.
 struct Model
 
     on_site_bases
@@ -26,13 +28,25 @@ struct Model
 
     label::String
 
-    function Model(on_site_bases, off_site_bases,
-        on_site_parameters::OnSiteParaSet, off_site_parameters::OffSiteParaSet, basis_definition, label::String)
-        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters, basis_definition, label)
+    meta_data::Dict{String, Any}
+
+    function Model(
+        on_site_bases, off_site_bases, on_site_parameters::OnSiteParaSet,
+        off_site_parameters::OffSiteParaSet, basis_definition, label::String,
+        meta_data::Union{Dict, Nothing}=nothing)
+        
+        # If no meta-data is supplied then just default to a blank dictionary
+        meta_data = isnothing(meta_data) ? Dict{String, Any}() : meta_data  
+        
+        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters,
+            basis_definition, label, meta_data)
     end
     
-    function Model(basis_definition::BasisDef, on_site_parameters::OnSiteParaSet,
-                   off_site_parameters::OffSiteParaSet, label::String)
+    function Model(
+        basis_definition::BasisDef, on_site_parameters::OnSiteParaSet,
+        off_site_parameters::OffSiteParaSet, label::String,
+        meta_data::Union{Dict, Nothing}=nothing)
+
         # Developers Notes
         # This makes the assumption that all z₁-z₂-ℓ₁-ℓ₂ interactions are represented
         # by the same model.
@@ -86,7 +100,9 @@ struct Model
             end
         end
 
-    new(on_sites, off_sites, on_site_parameters, off_site_parameters, basis_definition, label)
+    # If no meta-data is supplied then just default to a blank dictionary
+    meta_data = isnothing(meta_data) ? Dict{String, Any}() : meta_data  
+    new(on_sites, off_sites, on_site_parameters, off_site_parameters, basis_definition, label, meta_data)
     end
 
 end
@@ -127,6 +143,13 @@ function ACEbase.write_dict(m::Model)
         end
     end
 
+    # Serialise the meta-data
+    meta_data = Dict{String, Any}(
+        # Invoke the `read_dict` method on values as and where appropriate
+        k => hasmethod(write_dict, (typeof(v),)) ? write_dict(v) : v
+        for (k, v) in m.meta_data
+    )
+
     dict =  Dict(
         "__id__"=>"HModel",
         "on_site_bases"=>Dict(k=>write_dict(v, true) for (k, v) in m.on_site_bases),
@@ -135,7 +158,8 @@ function ACEbase.write_dict(m::Model)
         "off_site_parameters"=>write_dict(m.off_site_parameters),
         "basis_definition"=>Dict(k=>write_dict(v) for (k, v) in m.basis_definition),
         "bases_hashes"=>bases_hashes,
-        "label"=>m.label)
+        "label"=>m.label,
+        "meta_data"=>meta_data)
     
     return dict
 end
@@ -153,19 +177,33 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     end
 
     # Replace basis object hashs with the appropriate object. 
-    
     set_bases(dict["on_site_bases"], dict["bases_hashes"])
     set_bases(dict["off_site_bases"], dict["bases_hashes"])
 
     ensure_int(v) = v isa String ? parse(Int, v) : v
     
+    # Parse meta-data
+    if haskey(dict, "meta_data")
+        meta_data = Dict{String, Any}()
+        for (k, v) in dict["meta_data"]
+            if typeof(v) <: Dict && haskey(v, "__id__")
+                meta_data[k] = read_dict(v)
+            else
+                meta_data[k] = v
+            end
+        end
+    else
+        meta_data = nothing
+    end
+
     return Model(
         Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_bases"]),
         Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_bases"]),
         read_dict(dict["on_site_parameters"]),
         read_dict(dict["off_site_parameters"]),
         Dict(ensure_int(k)=>read_dict(v) for (k, v) in dict["basis_definition"]),
-        dict["label"])
+        dict["label"],
+        meta_data)
 end
 
 

@@ -126,13 +126,18 @@ function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:
         B = _evaluate_real(A)
         values .= (basis.coefficients' * B) + basis.mean
 
-        # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON>>>>>>>>>>
+        # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION>>>>>>>>>>
         if T<:AnisoBasis
             A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
             B = _evaluate_real(A)
             values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
+        elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
+            A = evaluate(basis.basis, ACEConfig(reflect.(state)))
+            B = _evaluate_real(A)
+            values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
+
         end
-        # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON<<<<<<<<<<
+        # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION<<<<<<<<<<
 
     else
         fill!(values, 0.0)
@@ -250,15 +255,18 @@ function _predict(model, atoms, cell_indices)
             off_site_states = _get_states( # Build states for the off-site atom-blocks
                 off_blockᵢ, atoms, envelope(basis_off), cell_indices)
             
-            let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
-                set_sub_blocks!( # Assign off-site sub-blocks to the matrix
-                    matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+            # Don't try to compute off-site interactions if none exist
+            if length(off_site_states) > 0
+                let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+                    set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
-                
-                _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
-                values = permutedims(values, (2, 1, 3))
-                set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
-                    matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    
+                    _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+                    values = permutedims(values, (2, 1, 3))
+                    set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                end
             end
 
             
@@ -268,14 +276,17 @@ function _predict(model, atoms, cell_indices)
                 # Get the on-site basis and construct the on-site states
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
-
-                let values = predict(basis_on, on_site_states) # Predict on-site sub-blocks
-                    set_sub_blocks!( # Assign on-site sub-blocks to the matrix
-                        matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
-                    
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(  # Assign data to the symmetrically equivalent blocks
-                        matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                
+                # Don't try to compute on-site interactions if none exist
+                if length(on_site_states) > 0
+                    let values = predict(basis_on, on_site_states) # Predict on-site sub-blocks
+                        set_sub_blocks!( # Assign on-site sub-blocks to the matrix
+                            matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+                        
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(  # Assign data to the symmetrically equivalent blocks
+                            matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
                 end
             end
 
@@ -321,30 +332,34 @@ function _predict(model, atoms)
             off_site_states = _get_states(
                 off_blockᵢ, atoms, envelope(basis_off))
             
-            let values = predict(basis_off, off_site_states)
-                set_sub_blocks!(
-                    matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+            if length(off_site_states) > 0 
+                let values = predict(basis_off, off_site_states)
+                    set_sub_blocks!(
+                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
-                
-                _reflect_block_idxs!(off_blockᵢ)
-                values = permutedims(values, (2, 1, 3))
-                set_sub_blocks!(
-                    matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    
+                    _reflect_block_idxs!(off_blockᵢ)
+                    values = permutedims(values, (2, 1, 3))
+                    set_sub_blocks!(
+                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                end
             end
 
             
             if species₁ ≡ species₂ && model.label ≠ "S"
-                
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
+                
 
-                let values = predict(basis_on, on_site_states)
-                    set_sub_blocks!(
-                        matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
-                    
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(
-                        matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                if length(on_site_states) > 0
+                    let values = predict(basis_on, on_site_states)
+                        set_sub_blocks!(
+                            matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+                        
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(
+                            matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
                 end
             end
 

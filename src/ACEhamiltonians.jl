@@ -21,13 +21,21 @@ two s-shells and one p-shell.
 BasisDef = Dict{I, Vector{I}} where I<:Integer
 
 
-function cart2spher(r⃗::AbstractVector)
+function cart2spher(r⃗::AbstractVector{T}) where T
     @assert length(r⃗) == 3
-    φ = atan(r⃗[2], r⃗[1])
-    θ = atan(r⃗[3], hypot(r⃗[1], r⃗[2]))
-    sinφ, cosφ = sincos(φ)
-    sinθ, cosθ = sincos(θ)
-    return SphericalCoords(norm(r⃗), cosφ, sinφ, cosθ, sinθ)
+    # When the length of the vector `r⃗` is zero then the signs can have a
+    # destabalising effect on the results; i.e.
+    #   cart2spher([0., 0., 0.]) ≠ cart2spher([0. 0., -0.])
+    # Hense the following catch:
+    if norm(r⃗) ≠ 0.0
+        φ = atan(r⃗[2], r⃗[1])
+        θ = atan(hypot(r⃗[1], r⃗[2]), r⃗[3])
+        sinφ, cosφ = sincos(φ)
+        sinθ, cosθ = sincos(θ)
+        return SphericalCoords{T}(norm(r⃗), cosφ, sinφ, cosθ, sinθ)
+    else
+        return SphericalCoords{T}(0.0, 1.0, 0.0, 1.0, 0.0)
+    end
 end
 
 

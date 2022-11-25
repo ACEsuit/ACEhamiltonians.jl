@@ -629,7 +629,7 @@ abstract type ParaSet end
 
 
 """
-    OnSiteParaSet(ν, deg, e_cut_out, e_cut_in)
+    OnSiteParaSet(ν, deg, e_cut_out, r0)
 
 This structure holds all the `Params` instances required to construct the on-site
 bases.
@@ -640,28 +640,28 @@ bases.
   more than the correlation order.   
 - `deg::Params{K, Int}`: maximum polynomial degree.
 - `e_cut_out::Parameters{K, Float}`: environment's external cutoff distance.
-- `e_cut_in::Parameters{K, Float}`: environment's internal cutoff distance.
+- `r0::Parameters{K, Float}`: scaling parameter (typically set to the nearest neighbour distances).
 
 """
 struct OnSiteParaSet <: ParaSet
     ν
     deg
     e_cut_out
-    e_cut_in
+    r0
 
-    function OnSiteParaSet(ν::T₁, deg::T₂, e_cut_out::T₃, e_cut_in::T₄
+    function OnSiteParaSet(ν::T₁, deg::T₂, e_cut_out::T₃, r0::T₄
         ) where {T₁<:NewParams, T₂<:NewParams, T₃<:NewParams, T₄<:NewParams}
         ν::NewParams{<:Label, <:Integer}
         deg::NewParams{<:Label, <:Integer}
         e_cut_out::NewParams{<:Label, <:AbstractFloat}
-        e_cut_in::NewParams{<:Label, <:AbstractFloat}
-        new(ν, deg, e_cut_out, e_cut_in)
+        r0::NewParams{<:Label, <:AbstractFloat}
+        new(ν, deg, e_cut_out, r0)
     end
 
 end
 
 """
-    OffSiteParaSet(ν, deg, b_cut, e_cut_out, e_cut_in)
+    OffSiteParaSet(ν, deg, b_cut, e_cut_out, r0)
 
 This structure holds all the `Params` instances required to construct the off-site
 bases.
@@ -672,23 +672,23 @@ bases.
 - `deg::Params{K, Int}`: maximum polynomial degree.
 - `b_cut::Params{K, Float}`: cutoff distance for off-site interactions.
 - `e_cut_out::Params{K, Float}`: environment's external cutoff distance.
-- `e_cut_in::Params{K, Float}`: environment's internal cutoff distance.
+- `r0::Params{K, Float}`: scaling parameter (typically set to the nearest neighbour distances).
 """
 struct OffSiteParaSet <: ParaSet
     ν
     deg
     b_cut
     e_cut_out
-    e_cut_in
+    r0
     
-    function OffSiteParaSet(ν::T₁, deg::T₂, b_cut::T₃, e_cut_out::T₄, e_cut_in::T₅
+    function OffSiteParaSet(ν::T₁, deg::T₂, b_cut::T₃, e_cut_out::T₄, r0::T₅
         ) where {T₁<:NewParams, T₂<:NewParams, T₃<:NewParams, T₄<:NewParams, T₅<:NewParams}
         ν::NewParams{<:Label, <:Integer}
         deg::NewParams{<:Label, <:Integer}
         b_cut::NewParams{<:Label, <:AbstractFloat}
         e_cut_out::NewParams{<:Label, <:AbstractFloat}
-        e_cut_in::NewParams{<:Label, <:AbstractFloat}
-        new(ν, deg, b_cut, e_cut_out, e_cut_in)
+        r0::NewParams{<:Label, <:AbstractFloat}
+        new(ν, deg, b_cut, e_cut_out, r0)
     end
 
 end
@@ -733,11 +733,11 @@ function ACEbase.read_dict(::Val{:ParaSet}, dict::Dict)
     if haskey(dict, "b_cut")
         return OffSiteParaSet((
             ACEbase.read_dict(dict[i]) for i in
-            ["ν", "deg", "b_cut", "e_cut_out", "e_cut_in"])...)
+            ["ν", "deg", "b_cut", "e_cut_out", "r0"])...)
     else
         return OnSiteParaSet((
             ACEbase.read_dict(dict[i]) for i in
-            ["ν", "deg", "e_cut_out", "e_cut_in"])...)
+            ["ν", "deg", "e_cut_out", "r0"])...)
     end
 end
 
@@ -762,7 +762,7 @@ This is mostly intended as a convenience function.
 function Base.getindex(para::OnSiteParaSet, key)
     return (
         para.ν[key], para.deg[key],
-        para.e_cut_out[key], para.e_cut_in[key])
+        para.e_cut_out[key], para.r0[key])
 end
 
 
@@ -782,7 +782,7 @@ This is mostly intended as a convenience function.
 function Base.getindex(para::OffSiteParaSet, key)
     return (
         para.ν[key], para.deg[key], para.b_cut[key],
-        para.e_cut_out[key], para.e_cut_in[key])
+        para.e_cut_out[key], para.r0[key])
 end
 
 

@@ -92,7 +92,7 @@ function read_dict_fromjson(D::Dict)
    rcut = vecvec2vecmat(D["rcut"])
    maxdeg = vecvec2vecmat(D["maxdeg"])
    order = vecvec2vecmat(D["order"])
-   reg_par = vecvec2vecmat(D["order"])
+   reg_par = vecvec2vecmat(D["reg_par"])
    return Params(rcut, maxdeg, order, reg_par, D["reg_type"], D["Solver"])
 end
 

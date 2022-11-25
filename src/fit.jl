@@ -52,7 +52,7 @@ function evaluateval_real(Aval)
          end
       end
    end
-   #return Aval_real
+
    if norm(Aval_real - real(Aval_real))<1e-12
       return real(Aval_real)
    else
@@ -161,9 +161,12 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
    if Solver == "QR"
       return real(qr(A) \ Y)
    elseif Solver == "LSQR"
-      Ad, Yd = distribute(A), distribute(Y)
-      res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
-      close(Ad), close(Yd)
+      # The use of distributed arrays is still causing a memory leak. As such the following
+      # code has been disabled until further notice.
+      # Ad, Yd = distribute(A), distribute(Y)
+      # res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
+      # close(Ad), close(Yd)
+      res = real(IterativeSolvers.lsqr(A, Y; atol = 1e-6, btol = 1e-6))
       return res
    elseif Solver == "NaiveSolver"
       return real((A'*A) \ (A'*Y))

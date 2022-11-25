@@ -274,8 +274,10 @@ function get_state(
 
     # Construct the environmental atom states; i.e. where `bond=false`.
     for k=1:length(vecs_no_bond)
-        # Offset the vectors as needed and guard against erroneous positions.
-        vec = _guard_position(vecs_no_bond[k] - offset, rr0, i, j)
+        # Offset the vectors as needed. The vector is currently rounded to eight decimal
+        # places as a temporary measure to alleviate the positional hypersensitivity of  
+        # atoms near the midpoint of the bond.
+        vec = round.(vecs_no_bond[k] - offset, digits=8)
         states[k+1] = BondState{typeof(rr0), Bool}(vec, rr0, false)
     end
     
@@ -458,60 +460,6 @@ function _locate_target_image(j::I, idxs::AbstractVector{I}, images::AbstractVec
     js = findall(==(j), idxs)
     idx = findfirst(i -> all(i .== image), images[js])
     return isnothing(idx) ? zero(I) : js[idx]
-end
-
-
-"""
-    _guard_position(vec, rr0, i, j[; cutoff=0.05])
-
-Clean environmental bond state positions to prevent erroneous behaviour.
-
-If, when constructing a `BondState` entity, an environmental atom is found to lie too close
-to the midpoint between the two bonding atoms then ACE will crash. Thus, such cases must be
-carefully checked for and, when encountered, a small offset applied.
-
-# Arguments
-- `vec`: the vector to be checked and, if necessary, cleaned. This should be relative to
-  the midpoint of the bond.
-- `rr0`: bond vector.
-- `i`: index of the first bonding atom.
-- `j`: index of the second bonding atom.
-- `cutoff`: the minimum permitted distance from the origin. Vectors closer to the origin
-  than this value will be offset. 
-
-# Returns
-- `vec`: the original vector `vec` or a safely offset version thereof.
-
-# Notes
-While best efforts have been made to make the offset as reproducible as possible it is not
-invariant to permutation for instances where the atom lies **exactly** at the midpoint.
-
-"""
-function _guard_position(vec::T, rr0::T, i::I, j::I; cutoff=0.05) where {I<:Integer, T}
-    #################################DEBUGGING
-    return vec
-
-    # # If the an environmental atom lies too close to the origin it must be offset to avoid
-    # # errors. While this introduces noise, it is better than not being able to fit. A
-    # # better solution should be found where and if possible. Rounding is needed to stabilise
-    # # the behaviour of this function.
-    # vec_norm = round(norm(vec), digits=8)
-    
-    # # If the vector is outside of the cutoff region then no action is required 
-    # if vec_norm >= cutoff
-    #     return vec
-    # # If the atom is inside of the cutoff region, but not at exactly at the mid-point then
-    # # scale the vector so that it lies outside of the cutoff region.
-    # elseif 0 < vec_norm
-    #     return normalize(vec) * cutoff
-    # # If the atom lies exactly at the bond origin, then offset it along the bond vector.
-    # elseif vec_norm == 0 
-    #     # Shift vector is in direction of the atom with the lowest atomic index, or if both
-    #     # are the same then the first atom. This helps to make the offset a little more
-    #     # consistent and reproducible.
-    #     o = i <= j ? -one(I) : one(I)
-    #     return normalize(rr0) * (cutoff * o)
-    # end
 end
 
 
