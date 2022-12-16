@@ -89,4 +89,6 @@ include("properties.jl")
 
 include("tools.jl")
 
+include("api/dftbp_api.jl")
+
 end

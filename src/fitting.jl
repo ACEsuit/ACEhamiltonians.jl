@@ -252,7 +252,95 @@ function fit!(
             @warn "Skipping $(basis.id): basis already fitted"
         else
             println("\t- $basis [N: $(length(data_set))]")
-            fit!(basis, data_set)
+            fit!(basis, data_set; nonzero_mean=ison(basis))
+        end
+        
+
+    end
+
+end
+
+
+# The following code was added to `fitting.jl` to allow data to be fitted on databases
+# structured using the original database format.
+using ACEhamiltonians.DatabaseIO: _load_old_atoms, _load_old_hamiltonian, _load_old_overlap
+
+function old_fit!(
+    model::Model, systems, target::Symbol;
+    tolerance::F=0.0, filter_bonds::Bool=true, recentre::Bool=false,
+    refit::Bool=false) where F<:AbstractFloat
+    
+    # Todo:
+    #   - Check that the relevant data exists before trying to extract it; i.e. don't bother
+    #     trying to gather carbon on-site data from an H2 system.
+    #   - Currently the basis set definition is loaded from the first system under the
+    #     assumption that it is constant across all systems. However, this will break down
+    #     if different species are present in each system.
+    #   - The approach currently taken limits io overhead by reducing redundant operations.
+    #     However, this will likely use considerably more memory.
+
+    # Section 1: Gather the data
+
+    get_matrix = Dict(  # Select an appropriate function to load the target matrix
+        :H=>_load_old_hamiltonian, :S=>_load_old_overlap)[target]
+
+    fitting_data = Dict{Basis, DataSet}()
+
+    # Loop over the specified systems
+    for (database_path, index_data) in systems
+        
+        # Load the required data from the database entry
+        matrix, atoms = get_matrix(database_path), _load_old_atoms(database_path)
+
+        # Loop over the on site bases and collect the appropriate data
+        if haskey(index_data, "atomic_indices")
+            println("Gathering on-site data:")
+            for basis in values(model.on_site_bases)
+                println("\t- $basis")
+                data_set = get_dataset(
+                    matrix, atoms, basis, model.basis_definition;
+                    tolerance=tolerance, focus=index_data["atomic_indices"])
+                _append_data!(fitting_data,basis, data_set)
+            end
+        end
+
+        # Repeat for the off-site models
+        if haskey(index_data, "atom_block_indices")
+            println("Gathering off-site data:")
+            for basis in values(model.off_site_bases)
+                println("\t- $basis")
+                data_set = get_dataset(
+                    matrix, atoms, basis, model.basis_definition;
+                    tolerance=tolerance, filter_bonds=filter_bonds, focus=index_data["atom_block_indices"])
+                
+                # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION>>>>>>>>>>
+                # As ACE does not currently obey bond inversion symmetry the symmetrically
+                # equivalent datasets must also be trained on. This is done intrinsically for
+                # hetro-orbital interactions due to the use of dual models. However, the
+                # "inverse" data must be added manually for homo-orbital interactions. 
+                if (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
+                    data_set += data_set'
+                end
+                # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION<<<<<<<<<<
+
+                _append_data!(fitting_data, basis, data_set)
+
+            end
+        end
+    end
+
+
+    # Fit the on/off-site models
+    println("Fitting models:")
+    for (basis, data_set) in fitting_data
+        if length(data_set) ≡ 0
+            @warn "Cannot fit $(basis.id): no matching data-points found (filters may be too aggressive)"
+            continue
+        elseif is_fitted(basis) && !refit
+            @warn "Skipping $(basis.id): basis already fitted"
+        else
+            println("\t- $basis [N: $(length(data_set))]")
+            fit!(basis, data_set; nonzero_mean=ison(basis))
         end
         
 

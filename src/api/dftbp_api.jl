@@ -1,9 +1,16 @@
+module DftbpApi
 using ACEhamiltonians
-using BlockArrays, Serialization, StaticArrays
+using BlockArrays, StaticArrays, Serialization
 using LinearAlgebra: norm, diagind
 using ACEbase: read_dict, load_json
 
 using ACEhamiltonians.States: _inner_evaluate
+
+
+export load_model, n_orbs_per_atom, offers_species, offers_species, species_name_to_id, max_interaction_cutoff,
+       max_environment_cutoff, shells_on_species!, n_shells_on_species, shell_occupancies!, build_on_site_atom_block!,
+       build_off_site_atom_block!
+
 
 
 # Todo:
@@ -154,6 +161,12 @@ end
 
 
 @FSE function _build_atom_state(coordinates, cutoff)
+    
+    # Todo:
+    #   - The distance filter can likely be removed as atoms beyond the cutoff will be
+    #     ignored by ACE. Tests will need to be performed to identify which is more
+    #     performant; culling here or letting ACE handle the culling.
+
     # Build a list of static coordinate vectors, excluding the origin. 
     positions = map(_F64SV, eachcol(coordinates[:, 2:end]))
 
@@ -196,7 +209,6 @@ end
 
 
 function build_on_site_atom_block!(block::Vector{Float64}, coordinates::Vector{Float64}, species, model)
-    
     basis_def = model.basis_definition
     n_shells = length(basis_def[species[1]])
 
@@ -291,5 +303,7 @@ end
 
         end
     end
+
+end
 
 end

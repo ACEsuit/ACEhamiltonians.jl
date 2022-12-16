@@ -135,7 +135,6 @@ function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:
             A = evaluate(basis.basis, ACEConfig(reflect.(state)))
             B = _evaluate_real(A)
             values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
-
         end
         # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION<<<<<<<<<<
 
@@ -298,6 +297,14 @@ end
 
 
 function _predict(model, atoms)
+    # Currently this method has the tendency to produce non-positive definite overlap
+    # matrices when working with the aluminum systems, however this is not observed in
+    # the silicon systems. As such this function should not be used for periodic systems
+    # until the cause of this issue can be identified. 
+    @warn "This function is not to be trusted"
+    # TODO:
+    #   - It seems like the `filter_idxs_by_bond_distance` method is not working as intended
+    #     as results change based on whether this is enabled or disabled.
 
     # See comments in the real space matrix version of `predict` more information. 
     basis_def = model.basis_definition

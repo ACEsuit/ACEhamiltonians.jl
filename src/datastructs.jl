@@ -248,23 +248,23 @@ function get_dataset(
     end
 
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
-    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def)
+    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def; focus=focus)
 
-    # Restrict the block search from "everything" to only the blocks that match the
-    # conditions specified by the `focus` argument.
-    if !isnothing(focus)
-        # Restrict to atom-blocks involving a specific subset of atoms
-        if focus isa Vector
-            mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
-        # Restrict to specific atom-blocks
-        else
-            # Only applies to off-site interactions
-            @assert !ison(basis) "matrix `filter` argument only valid for off-site interactions"
-            mask = ∈(collect(eachcol(focus))).(collect(eachcol(block_idxs[1:2, :])))
-        end
-        block_idxs = block_idxs[:, mask]
-        blocks = blocks[:, :, mask]
-    end
+    # # Restrict the block search from "everything" to only the blocks that match the
+    # # conditions specified by the `focus` argument.
+    # if !isnothing(focus)
+    #     # Restrict to atom-blocks involving a specific subset of atoms
+    #     if focus isa Vector
+    #         mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
+    #     # Restrict to specific atom-blocks
+    #     else
+    #         # Only applies to off-site interactions
+    #         @assert !ison(basis) "matrix `filter` argument only valid for off-site interactions"
+    #         mask = ∈(collect(eachcol(focus))).(collect(eachcol(block_idxs[1:2, :])))
+    #     end
+    #     block_idxs = block_idxs[:, mask]
+    #     blocks = blocks[:, :, mask]
+    # end
 
     # If gathering off-site data and `filter_bonds` is `true` then remove data-points
     # associated with interactions between atom pairs whose bond-distance exceeds the
@@ -295,6 +295,7 @@ function get_dataset(
 
     return dataset
 end
+
 
  
 end
