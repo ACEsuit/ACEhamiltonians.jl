@@ -196,6 +196,14 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
         meta_data = nothing
     end
 
+    # One of the important entries present in the meta-data dictionary is the `occupancy`
+    # data. This should be keyed by integers; however the serialisation/de-serialisation
+    # process converts this into a string. A hard-coded fix is implemented here, but it
+    # would be better to create a more general way of handling this later on.
+    if !isnothing(meta_data) && haskey(meta_data, "occupancy") && (keytype(meta_data["occupancy"]) ≡ String)
+        meta_data["occupancy"] = Dict(parse(Int, k)=>v for (k, v) in meta_data["occupancy"])
+    end
+
     return Model(
         Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_bases"]),
         Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_bases"]),
