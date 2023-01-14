@@ -17,7 +17,7 @@ at = get_atoms(fname)[2]
 ## Specify a test set
 testset = []
 k = 0
-n_test = 200 # in our paper we have 2000 test data but it makes no huge difference so I just choose 200 here
+n_test = 200 # in our paper we have 2000 test data but it makes no huge difference so I choose 200 here for a quick illustration
 while k<n_test
     i = rand(1:728)
     j = rand(i+1:729)
@@ -71,7 +71,6 @@ for deg in degset
         end
         rmse_total[nn] = sqrt(rmse_total[nn]/k)
     end
-    @show deg, log10.(mean(rmse_total))
     # To get the correct RMSE
     # we should have used the following line in fact 
     # but they differed just slightly and do not have difference in terms of trend
@@ -159,11 +158,12 @@ for deg in degset
 end
 
 ## Plot
-plot(degset,log10.(RMSE_SS),label="ss")
-plot!(degset,log10.(RMSE_SP),label="sp",color=2)
-plot!(degset,log10.(RMSE_PS),label="ps",color=2,shape=:circle)
-plot!(degset,log10.(RMSE_PP),label="pp",color=3,xlabel="Maximum degree",ylabel="log10(RMSE) / ev",title="Order 1. Offsite H RMSE",size = (600,900))
-ylims!(-3.5, -1)
+plt = plot(degset,log10.(RMSE_SS),label="ss",ls=:dash)
+plot!(degset,log10.(RMSE_SP),label="sp",color=2,shape=:diamond,ls=:dash)
+plot!(degset,log10.(RMSE_PS),label="ps",color=2,shape=:rect,ls=:dash)
+plot!(degset,log10.(RMSE_PP),label="pp",color=4,ls=:dash,xlabel="Maximum degree",ylabel="log10(RMSE) / ev",title="Order 1. Offsite H RMSE",size = (600,900))
+ylims!(-3.7, -1)
+plt
 
 
 ## PS1: I am assuming that nothing beyond the PP blocks is of interest at the current stage
