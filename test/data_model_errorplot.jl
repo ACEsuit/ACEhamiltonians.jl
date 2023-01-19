@@ -49,7 +49,7 @@ end
 labels = ["ss","sp","sd","ps","pp","pd","ds","dp","dd"]
 colors = [1, 2, 3, 2, 4, 5, 3, 5, 6]
 shapes = [:none, :diamond, :diamond, :rect, :none, :diamond, :rect, :rect, :none]
-plt = plot(degset,rmse_train[1,:],yscale=:log,color=1,shape=:none,label=labels[1],size=(600,800))
+plt = plot(degset,rmse_train[1,:],yscale=:log,color=1,shape=:none,label=labels[1],xlabel="Maximum degree",ylabel="RMSE / ev",title="Order 1. Offsite H RMSE",size=(600,800))
 plot!(degset,rmse_test[1,:],yscale=:log,ls=:dash,color=1,label=false)
 for i in 2:9
     plot!(degset,rmse_train[i,:],yscale=:log,color=colors[i],shape=shapes[i],label=labels[i])
