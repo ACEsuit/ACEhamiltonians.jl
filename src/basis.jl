@@ -330,6 +330,14 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
     # Bond envelope which controls which atoms are seen by the bond.
     env = CylindricalBondEnvelope(b_cut, e_cutₒᵤₜ, e_cutₒᵤₜ, floppy=false, λ=0.0)
 
+    return off_site_ace_basis(ℓ₁, ℓ₂, ν, deg, env, r_0, λₙ, λₗ)
+    
+
+end
+
+function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, env::CylindricalBondEnvelope, r_0::F=2.5,
+    λₙ::F=.5, λₗ::F=.5) where {I<:Integer, F<:AbstractFloat}
+
     # Categorical1pBasis is applied to the basis to allow atoms which are part of the
     # bond to be treated differently to those that are just part of the environment.
     discriminator = Categorical1pBasis([true, false]; varsym=:bond, idxsym=:bond)
@@ -346,6 +354,9 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
         SimpleSparseBasis(ν + 1, deg),
         filterfun=states -> _filter_offsite_be(states, deg, λₙ, λₗ))
 end
+
+
+
 
 """
     _filter_offsite_be(states, max_degree[, λ_n=0.5, λ_l=0.5])
