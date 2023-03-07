@@ -1,16 +1,20 @@
 module Bases
 
-using ACE
+using ACE, SparseArrays, LinearAlgebra
 using ACE: SymmetricBasis, SphericalMatrix, Utils.RnYlm_1pbasis, SimpleSparseBasis,
-           CylindricalBondEnvelope, Categorical1pBasis, cutoff_radialbasis, cutoff_env
+           CylindricalBondEnvelope, Categorical1pBasis, cutoff_radialbasis, cutoff_env, get_spec, coco_dot
 using ACEbase
 import ACEbase: read_dict, write_dict
 using ACEbase.ObjectPools: VectorPool
 using ACEhamiltonians
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
+import LinearAlgebra.adjoint, LinearAlgebra.transpose, Base./
 
+adjoint(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(A.val', Val{L2}(), Val{L1}())
+transpose(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(transpose(A.val), Val{L2}(), Val{L1}())
+/(A::SphericalMatrix{L1, L2, LEN1, LEN2, T, LL}, b::Number) where {L1, L2, LEN1, LEN2, T, LL} = SphericalMatrix(A.val/b, Val{L1}(), Val{L2}())
 
-export Basis, IsoBasis, AnisoBasis, radial, angular, categorical, envelope, on_site_ace_basis, off_site_ace_basis, filter_offsite_be, is_fitted
+export Basis, IsoBasis, AnisoBasis, radial, angular, categorical, envelope, on_site_ace_basis, off_site_ace_basis, off_site_ace_basis_sym, filter_offsite_be, is_fitted
 """
 TODO:
     - Figure out what is going on with filter_offsite_be and its arguments.
@@ -153,7 +157,7 @@ Basis(basis, basis_i, id) = AnisoBasis(basis, basis_i, id)
 
 # ╭───────┬───────────────────────╮
 # │ Basis │ General Functionality │
-# ╰───────┴───────────────────────╯ 
+# ╰───────┴───────────────────────╯
 """Boolean indicating whether a `Basis` instance is fitted; i.e. has non-zero coefficients"""
 is_fitted(basis::IsoBasis) = !all(basis.coefficients .≈ 0.0)
 is_fitted(basis::AnisoBasis) = !(
@@ -194,7 +198,7 @@ Parameters.ison(x::Basis) = length(x.id) ≡ 3
     _filter_bases(basis, type)
 
 Helper function to retrieve specific basis function information out of a `Basis` instance.
-This is an internal function which is not expected to be used outside of this module. 
+This is an internal function which is not expected to be used outside of this module.
 
 Arguments:
 - `basis::Basis`: basis instance from which function is to be extracted.
@@ -312,7 +316,7 @@ selector to a `Rn1pBasis` instance. The latter of which is initialised via the `
 method, using all the defaults associated therein except `e_cutₒᵤₜ` and `e_cutᵢₙ` which are
 provided by this function. This facilitates quick construction of simple on-site `Bases`
 instances; if more fine-grain control over over the initialisation process is required
-then bases must be instantiated manually. 
+then bases must be instantiated manually.
 
 # Arguments
 - `(ℓ₁,ℓ₂)::Integer`: azimuthal numbers of the basis function.
@@ -323,7 +327,7 @@ then bases must be instantiated manually.
 - `e_cutᵢₙ::AbstractFloat`: inner cutoff radius, defaults to 2.5.
 
 # Returns
-- `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
+- `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction.
 
 """
 function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, e_cutᵢₙ::F=2.5
@@ -362,7 +366,7 @@ must be manually instantiated if more fine-grained control is desired.
 - `λₗ::AbstractFloat`: ???
 
 # Returns
-- `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
+- `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction.
 
 """
 function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5., e_cutᵢₙ::F=0.05,
@@ -378,13 +382,77 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
     # The basis upon which the above entities act.
     RnYlm = RnYlm_1pbasis(maxdeg=deg, r0=e_cutᵢₙ, rcut=cutoff_env(env), trans=PolyTransform(1, 1/e_cutᵢₙ^2))
 
-    
+
     return SymmetricBasis(
         SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
         RnYlm * env * discriminator,
         SimpleSparseBasis(ν + 1, deg),
         filterfun=states -> _filter_offsite_be(states, deg, λₙ, λₗ))
 end
+
+function off_site_ace_basis_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5., e_cutᵢₙ::F=0.05,
+    λₙ::F=.5, λₗ::F=.5) where {I<:Integer, F<:AbstractFloat}
+   # construct non-symmetric offsite basis
+   b = off_site_ace_basis(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ, e_cutᵢₙ, λₙ, λₗ)
+   if ℓ₁ ≤ ℓ₂
+      A = get_spec(b.pibasis)
+      if ℓ₁ == ℓ₂
+         U = dropzeros(adjoint.(b.A2Bmap) * perm(A) * sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] )))
+         U_new = dropzeros((b.A2Bmap + U)./2)
+
+         # get rid of linear dependence
+         G = [ length(notzero(U_new,a,b)) == 0 ? 0 : sum( coco_dot(U_new[a,i], U_new[b,i]) for i in notzero(U_new,a,b) ) for a = 1:size(U_new)[1], b = 1:size(U_new)[1] ]
+         svdC = svd(G)
+         rk = rank(Diagonal(svdC.S), rtol = 1e-7)
+         Ured = Diagonal(sqrt.(svdC.S[1:rk])) * svdC.U[:, 1:rk]'
+         U_new = sparse(Ured * U_new)
+         dropzeros!(U_new)
+
+         # construct symmetric offsite basis
+         basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
+      else
+         basis = b
+      end
+   else
+      A = get_spec(b.pibasis)
+      # a potentially error here if A2Bmap has 0 row - but hopefully it rarely happens?
+
+      U_new = adjoint.(off_site_ace_basis_sym(ℓ₂, ℓ₁, ν, deg, b_cut, e_cutₒᵤₜ, e_cutᵢₙ, λₙ, λₗ).A2Bmap) * perm(A)* sparse(diagm( [(-1)^(sort(A[j])[1].l) for j = 1 : length(A)] ))
+      # very strange...
+      U_new = dropzeros(U_new - U_new + U_new)
+      basis = SymmetricBasis(b.pibasis,U_new,b.symgrp,b.real)
+   end
+   return basis# OffsiteBasis(rcut,maxdeg,ord,basis)
+end
+
+notzero(U,a,b) = intersect(U[a,:].nzind, U[b,:].nzind)
+
+function perm(A)
+	D = Dict{Any, Int}()
+	for (i, val) in enumerate(A)
+	   D[val]= i
+	end
+	P = spzeros(length(A),length(A))
+	for j = 1:length(A)
+		sgn = 0
+		U_temp = copy(A[j])
+		for (i,k) in enumerate(A[j])
+			U_temp[i] = (n = k.n, l = k.l, m = -k.m, bond = k.bond)
+			sgn += k.m
+		end
+		if !(U_temp in A)
+			for UU_temp in A
+   				if sort(UU_temp) == sort(U_temp)
+	   				U_temp = UU_temp
+   				end
+			end
+		end
+		@assert(U_temp in A)
+		P[j,D[U_temp]] = (-1)^sgn
+	end
+	return P
+end
+
 
 """
     _filter_offsite_be(states, max_degree[, λ_n=0.5, λ_l=0.5])
@@ -406,7 +474,7 @@ This function and its doc-string will be rewritten once its function and argumen
 been identified satisfactorily.
 
 # Examples
-This is primarily intended to act as a filter function for off site bases like so:   
+This is primarily intended to act as a filter function for off site bases like so:
 ```
 julia> off_site_sym_basis = SymmetricBasis(
         φ, basis, selector,
@@ -419,7 +487,7 @@ julia> off_site_sym_basis = SymmetricBasis(
 
 """
 function _filter_offsite_be(states, max_degree, λ_n=.5, λ_l=.5)
-    if length(states) == 0; return false; end 
+    if length(states) == 0; return false; end
     deg_n, deg_l = ceil(Int, max_degree * λ_n), ceil(Int, max_degree * λ_l)
     for state in states
         if !state.bond && (state.n>deg_n || state.l>deg_l)
