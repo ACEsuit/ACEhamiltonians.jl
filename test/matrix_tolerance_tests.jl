@@ -86,9 +86,9 @@ function predict_values(H_osb, Rs, on_site=True)
 
     # Create the initial basis entity.
     if on_site
-        basis = OnsiteBasis(20.0, 5, 2, ℓ₁, ℓ₂; species = [:Al, ])
+        basis = OnsiteBasis(20.0, 8, 2, ℓ₁, ℓ₂; species = [:Al, ])
     else
-        basis = OffsiteBasis(20.0, 5, 2, ℓ₁, ℓ₂; species = [:Al, ])
+        basis = OffsiteBasis(20.0, 8, 2, ℓ₁, ℓ₂; species = [:Al, ])
     end
 
     # Calculate the Tychonov regularisation term as per equation

@@ -1,5 +1,5 @@
 module Fitting2
-using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra
+using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra, SparseArrays
 using HDF5: Group
 using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
@@ -24,60 +24,87 @@ export fit!
 #     no errors caused when importing it.
 #   - Remove hard coded matrix type from the predict function.
 
-function _evaluate_real(Aval)
-    # This would be far more efficient if it were batch operable.
-    # The logic used here is rerun continuously which is highly wasteful.
-
-    n₁, n₂ = size(Aval[1])
-    ℓ₁, ℓ₂ = Int((n₁ - 1) / 2), Int((n₂ - 1) / 2)
-
-    # allocate Aval_real
-    Aval_real = [zeros(ComplexF64, n₁, n₂) for i = 1:length(Aval)]
-    # reconstruct real A
-    # TODO: I believe that there must exist a matrix form... But I will keep it for now...
-    for k=1:length(Aval)
-
-        A = Aval[k].val
-        for i=1:n₁, j=1:n₂
-            # Magnetic quantum numbers
-            m₁, m₂ = i - ℓ₁ - 1, j - ℓ₂ - 1
-            
-            val = A[i,j]
-            
-            if m₁ < 0
-                val -= (-1)^(m₁) * A[end-i+1,j]
-            elseif m₁ > 0
-                val += (-1)^(m₁) * A[end-i+1,j]
-            end
-
-            if (m₁ > 0 < m₂) || (m₁ < 0 > m₂)
-                val += (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
-            elseif (m₁ > 0 > m₂) || (m₁ < 0 < m₂)
-                val -= (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
-            end
-            if m₂ < 0
-                val -= (-1)^(m₂) * A[i, end-j+1]
-            elseif m₂ > 0
-                val += (-1)^(m₂) * A[i, end-j+1]
-            end
-
-            # This could be applied as a matrix to the full block
-            s = ((m₁ >= 0) && (m₂ < 0)) ? -1 : 1 # Account for sign flip until mess is sorted
-            plane = (m₁ >= 0) ⊻ (m₂ >= 0) ? im : 1
-            scale = m₁ == 0 ? (m₂ == 0 ? 1 : 1/√2) : (m₂ == 0 ? 1/√2 : 1/2)
-
-            Aval_real[k][i,j] = scale * plane * (s * (val))
-        end
-
-        # Prefactor "scale" could be applied here as a matrix operation
-    end
-    #return Aval_real
-    if norm(Aval_real - real(Aval_real))<1e-12
-        return real(Aval_real)
-    else
-        error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
-    end
+function _ctran(l::Int64,m::Int64,μ::Int64)
+   if abs(m) ≠ abs(μ)
+      return 0
+   elseif abs(m) == 0
+      return 1
+   elseif m > 0 && μ > 0
+      return 1/sqrt(2)
+   elseif m > 0 && μ < 0
+      return (-1)^m/sqrt(2)
+   elseif m < 0 && μ > 0
+      return  - im * (-1)^m/sqrt(2)
+   else
+      return im/sqrt(2)
+   end
 end
+
+_ctran(l::Int64) = sparse(Matrix{ComplexF64}([ _ctran(l,m,μ) for m = -l:l, μ = -l:l ]))
+
+function _evaluate_real(Aval)
+   L1,L2 = size(Aval[1])
+   L1 = Int((L1-1)/2)
+   L2 = Int((L2-1)/2)
+   C1 = _ctran(L1)
+   C2 = _ctran(L2)
+   return real([ C1 * Aval[i].val * C2' for i = 1:length(Aval)])
+end
+
+# function _evaluate_real(Aval)
+#     # This would be far more efficient if it were batch operable.
+#     # The logic used here is rerun continuously which is highly wasteful.
+
+#     n₁, n₂ = size(Aval[1])
+#     ℓ₁, ℓ₂ = Int((n₁ - 1) / 2), Int((n₂ - 1) / 2)
+
+#     # allocate Aval_real
+#     Aval_real = [zeros(ComplexF64, n₁, n₂) for i = 1:length(Aval)]
+#     # reconstruct real A
+#     # TODO: I believe that there must exist a matrix form... But I will keep it for now...
+#     for k=1:length(Aval)
+
+#         A = Aval[k].val
+#         for i=1:n₁, j=1:n₂
+#             # Magnetic quantum numbers
+#             m₁, m₂ = i - ℓ₁ - 1, j - ℓ₂ - 1
+            
+#             val = A[i,j]
+            
+#             if m₁ < 0
+#                 val -= (-1)^(m₁) * A[end-i+1,j]
+#             elseif m₁ > 0
+#                 val += (-1)^(m₁) * A[end-i+1,j]
+#             end
+
+#             if (m₁ > 0 < m₂) || (m₁ < 0 > m₂)
+#                 val += (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
+#             elseif (m₁ > 0 > m₂) || (m₁ < 0 < m₂)
+#                 val -= (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
+#             end
+#             if m₂ < 0
+#                 val -= (-1)^(m₂) * A[i, end-j+1]
+#             elseif m₂ > 0
+#                 val += (-1)^(m₂) * A[i, end-j+1]
+#             end
+
+#             # This could be applied as a matrix to the full block
+#             s = ((m₁ >= 0) && (m₂ < 0)) ? -1 : 1 # Account for sign flip until mess is sorted
+#             plane = (m₁ >= 0) ⊻ (m₂ >= 0) ? im : 1
+#             scale = m₁ == 0 ? (m₂ == 0 ? 1 : 1/√2) : (m₂ == 0 ? 1/√2 : 1/2)
+
+#             Aval_real[k][i,j] = scale * plane * (s * (val))
+#         end
+
+#         # Prefactor "scale" could be applied here as a matrix operation
+#     end
+#     #return Aval_real
+#     if norm(Aval_real - real(Aval_real))<1e-12
+#         return real(Aval_real)
+#     else
+#         error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
+#     end
+# end
 
 """
 """
