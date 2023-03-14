@@ -6,6 +6,7 @@ using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
 using ACE: SymmetricBasis, SphericalMatrix, Utils.RnYlm_1pbasis, SimpleSparseBasis,
            CylindricalBondEnvelope, Categorical1pBasis, cutoff_radialbasis, cutoff_env,
            get_spec, coco_dot
+
 using ACEbase.ObjectPools: VectorPool
 using ACEhamiltonians: BOND_ORIGIN_AT_MIDPOINT, SYMMETRY_FIX_ENABLED
 
@@ -388,7 +389,7 @@ function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cut
     end
 
     return basis
-    
+
 end
 
 

@@ -378,6 +378,7 @@ function _load_old_atoms(path::String; groupname=nothing)
                         pbc = [true, true, true])
         return atoms
     end
+
 end
 
 end

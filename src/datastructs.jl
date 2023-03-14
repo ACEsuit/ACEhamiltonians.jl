@@ -391,6 +391,12 @@ function get_dataset(
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
     blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def; focus=focus)
 
+    if !isnothing(focus)
+        mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
+        block_idxs = block_idxs[:, mask]
+        blocks = blocks[:, :, mask]
+    end
+
     # If gathering off-site data and `filter_bonds` is `true` then remove data-points
     # associated with interactions between atom pairs whose bond-distance exceeds the
     # cutoff as specified by the bond envelope. This prevents having to construct states
