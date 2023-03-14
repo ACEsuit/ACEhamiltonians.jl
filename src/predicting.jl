@@ -7,6 +7,8 @@ using ACE: ACEConfig, AbstractState, evaluate
 using ACEhamiltonians.States: _get_states
 using ACEhamiltonians.Fitting2: _evaluate_real
 
+using ACEhamiltonians: DUEL_BASIS_MODEL
+
 export predict, predict!, cell_translations
 
 
@@ -113,10 +115,10 @@ are placed directly into the supplied matrix `values.`
 
 # Arguments
  - `values::AbstractMatrix`: matrix into which the results should be placed.
- - `basis::Basis`: basis to be evaluated.
+ - `basis::AHBasis`: basis to be evaluated.
  - `state::Vector{States}`: state upon which the `basis` should be evaluated. 
 """
-function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:Basis, S<:AbstractState}
+function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:AHBasis, S<:AbstractState}
     # If the model has been fitted then use it to predict the results; otherwise just
     # assume the results are zero.
     if is_fitted(basis)
@@ -126,17 +128,20 @@ function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:
         B = _evaluate_real(A)
         values .= (basis.coefficients' * B) + basis.mean
 
-        # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION>>>>>>>>>>
-        if T<:AnisoBasis
-            A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
-            B = _evaluate_real(A)
-            values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
-        elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
-            A = evaluate(basis.basis, ACEConfig(reflect.(state)))
-            B = _evaluate_real(A)
-            values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
+        @static if DUEL_BASIS_MODEL
+            if T<: AnisoBasis
+                A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
+                B = _evaluate_real(A)
+                values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
+            elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
+                # If the duel basis model is being used then it is assumed that the symmetry
+                # issue has not been resolved thus an additional symmetrisation operation is
+                # required.
+                A = evaluate(basis.basis, ACEConfig(reflect.(state)))
+                B = _evaluate_real(A)
+                values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
+            end
         end
-        # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTION<<<<<<<<<<
 
     else
         fill!(values, 0.0)
@@ -148,7 +153,7 @@ end
 
 """
 """
-function predict(basis::Basis, states::Vector{<:AbstractState})
+function predict(basis::AHBasis, states::Vector{<:AbstractState})
     # Create a results matrix to hold the predicted values. The shape & type information
     # is extracted from the basis. However, complex types will be converted to their real
     # equivalents as results in ACEhamiltonians are always real. With the current version
@@ -166,7 +171,7 @@ Predict the values for a collection of sub-blocks by evaluating the provided bas
 specified states. This is a the batch operable variant of the primary `predict!` method. 
 
 """
-function predict!(values::AbstractArray{<:Any, 3}, basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::AbstractArray{<:Any, 3}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
         @views predict!(values[:, :, i], basis, states[i])
     end
@@ -175,7 +180,7 @@ end
 
 """
 """
-function predict(basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict(basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     # Construct and fill a matrix with the results from multiple states
     n, m, type = ACE.valtype(basis.basis).parameters[3:5]
     values = Array{real(type), 3}(undef, n, m, length(states))
@@ -187,7 +192,7 @@ end
 # Special version of the batch operable `predict!` method that is used when scattering data
 # into a Vector of AbstractMatrix types rather than into a three dimensional tensor. This
 # is implemented to facilitate the scattering of data into collection of sub-view arrays.
-function predict!(values::Vector{<:Any}, basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::Vector{<:Any}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
         @views predict!(values[i], basis, states[i])
     end
@@ -210,6 +215,10 @@ function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, Abstra
 end
 
 function _predict(model, atoms, cell_indices)
+
+    # Todo:-
+    #   - use symmetry to prevent having to compute data for cells reflected
+    #     cell pairs; i.e. [ 0,  0,  1] & [ 0,  0, -1]
 
     basis_def = model.basis_definition
     n_orbs = number_of_orbitals(atoms, basis_def)

@@ -1,11 +1,10 @@
 module Models
 
-
 using ACEhamiltonians, ACE, ACEbase
 import ACEbase: read_dict, write_dict
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
-using ACEhamiltonians.Bases: Basis, IsoBasis, AnisoBasis, is_fitted
-
+using ACEhamiltonians.Bases: AHBasis, is_fitted
+using ACEhamiltonians: DUEL_BASIS_MODEL
 
 
 export Model
@@ -15,15 +14,17 @@ export Model
 # ║ Model ║
 # ╚═══════╝
 
+
 # Todo:
 #   - On-site and off-site components should be optional.
+#   - Document
+#   - Clean up 
 struct Model
 
     on_site_bases
     off_site_bases
-
-    on_site_parameters::OnSiteParaSet
-    off_site_parameters::OffSiteParaSet
+    on_site_parameters
+    off_site_parameters
     basis_definition
 
     label::String
@@ -52,8 +53,8 @@ struct Model
         # by the same model.
         # Discuss use of the on/off_site_cache entities
 
-        on_sites = Dict{NTuple{3, keytype(basis_definition)}, Basis}()
-        off_sites = Dict{NTuple{4, keytype(basis_definition)}, Basis}()
+        on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHBasis}()
+        off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHBasis}()
         
         # Caching the basis functions of the functions is faster and allows ust to reuse
         # the same basis function for similar interactions.
@@ -65,37 +66,43 @@ struct Model
         # as they represent the same thing.
         basis_definition_sorted = sort(collect(basis_definition), by=first)
         
+        @info "Building model"
         # Loop over all unique species pairs then over all combinations of their shells. 
         for (zₙ, (zᵢ, shellsᵢ)) in enumerate(basis_definition_sorted)
             for (zⱼ, shellsⱼ) in basis_definition_sorted[zₙ:end]
                 homo_atomic = zᵢ == zⱼ
                 for (n₁, ℓ₁) in enumerate(shellsᵢ), (n₂, ℓ₂) in enumerate(shellsⱼ)
-                    homo_orbital = n₁ == n₂
 
                     # Skip symmetrically equivalent interactions. 
                     homo_atomic && n₁ > n₂ && continue
                     
                     if homo_atomic
                         id = (zᵢ, n₁, n₂)
+                        @info "Building on-site model : $id"
                         ace_basis = ace_basis_on( # On-site bases
                             ℓ₁, ℓ₂, on_site_parameters[id]...)
 
-                        on_sites[(zᵢ, n₁, n₂)] = Basis(ace_basis, id)
+                        on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
                     end
 
+                    @info "Building off-site model: $id"
+
                     id = (zᵢ, zⱼ, n₁, n₂)
+
                     ace_basis = ace_basis_off( # Off-site bases
                         ℓ₁, ℓ₂, off_site_parameters[id]...)
                     
-                    # Unless this is a homo-atomic homo-orbital interaction a double basis
-                    # is needed.
-                    if homo_atomic && homo_orbital
-                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = Basis(ace_basis, id)
+                    @static if DUEL_BASIS_MODEL
+                        if homo_atomic && n₁ == n₂
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                        else
+                            ace_basis_i = ace_basis_off(
+                                ℓ₂, ℓ₁, off_site_parameters[(zⱼ, zᵢ, n₂, n₁)]...)
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, ace_basis_i, id)
+                        end
                     else
-                        ace_basis_i = ace_basis_off(
-                            ℓ₂, ℓ₁, off_site_parameters[(zⱼ, zᵢ, n₂, n₁)]...)
-                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = Basis(ace_basis, ace_basis_i, id)
-                    end
+                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                    end     
                 end
             end
         end
@@ -121,7 +128,7 @@ Base.:(==)(x::Model, y::Model) = (
 function ACEbase.write_dict(m::Model)
     # ACE bases are stored as hash values which are checked against the "bases_hashes"
     # dictionary during reading. This avoids saving multiple copies of the same object;
-    # which is common as `Basis` objects tend to share basis functions.
+    # which is common as `AHBasis` objects tend to share basis functions.
 
 
     bases_hashes = Dict{String, Any}()
@@ -138,9 +145,6 @@ function ACEbase.write_dict(m::Model)
 
     for basis in union(values(m.on_site_bases), values(m.off_site_bases))        
         add_basis(basis.basis)
-        if basis isa AnisoBasis
-            add_basis(basis.basis_i)
-        end
     end
 
     # Serialise the meta-data
@@ -170,9 +174,6 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     function set_bases(target, basis_functions)
         for v in values(target)
             v["basis"] = basis_functions[v["basis"]]
-            if v["__id__"] == "AnisoBasis"
-                v["basis_i"] = basis_functions[v["basis_i"]]
-            end
         end
     end
 
@@ -194,6 +195,14 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
         end
     else
         meta_data = nothing
+    end
+
+    # One of the important entries present in the meta-data dictionary is the `occupancy`
+    # data. This should be keyed by integers; however the serialisation/de-serialisation
+    # process converts this into a string. A hard-coded fix is implemented here, but it
+    # would be better to create a more general way of handling this later on.
+    if !isnothing(meta_data) && haskey(meta_data, "occupancy") && (keytype(meta_data["occupancy"]) ≡ String)
+        meta_data["occupancy"] = Dict(parse(Int, k)=>v for (k, v) in meta_data["occupancy"])
     end
 
     return Model(

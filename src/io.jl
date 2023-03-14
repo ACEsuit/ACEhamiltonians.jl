@@ -347,9 +347,9 @@ Load the calculated Fermi level (chemical potential).
 - `fermi_level::AbstractFloat`: the fermi level.
 """
 function load_fermi_level(src)
-  # Todo:
-  #   - This really should make use of unit attribute that is provided. 
-  return read(src, "Data/fermi_level")
+    # Todo:
+    #   - This really should make use of unit attribute that is provided. 
+    return read(src, "Data/fermi_level")
 end
 
 
@@ -362,9 +362,9 @@ function _load_old_hamiltonian(path::String)
 end
 
 function _load_old_overlap(path::String)
-  return h5open(path) do database
-      read(database, "aitb/S")[:, :]
-  end
+    return h5open(path) do database
+        read(database, "aitb/S")[:, :]
+    end
 end
 
 function _load_old_atoms(path::String; groupname=nothing)
@@ -381,6 +381,3 @@ function _load_old_atoms(path::String; groupname=nothing)
 end
 
 end
-
-
-

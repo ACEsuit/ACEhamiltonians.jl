@@ -4,24 +4,12 @@ using ACEhamiltonians.MatrixManipulation: BlkIdx
 using StaticArrays: SVector
 using LinearAlgebra: norm, normalize
 using ACE: AbstractState, CylindricalBondEnvelope, BondEnvelope, _evaluate_bond, _evaluate_env
+using ACEhamiltonians: BOND_ORIGIN_AT_MIDPOINT
 
 import ACEhamiltonians.Parameters: ison
 import ACE: _inner_evaluate
 
-# using ACE.SphericalHarmonics: SphericalCoords
-# import ACE.SphericalHarmonics: cart2spher
-
 export BondState, AtomState, reflect, get_state
-
-# function cart2spher(r⃗::AbstractVector)
-#     @assert length(r⃗) == 3
-#     φ = atan(r⃗[2], r⃗[1])
-#     θ = atan(r⃗[3], hypot(r⃗[1], r⃗[2]))
-#     sinφ, cosφ = sincos(φ)
-#     sinθ, cosθ = sincos(θ)
-#     return SphericalCoords(norm(r⃗), cosφ, sinφ, cosθ, sinθ)
-# end
-
 
 # ╔════════╗
 # ║ States ║
@@ -45,7 +33,11 @@ cases.
 
 # Developers Notes
 An additional field will be added at a later data to facilitate multi-species support. It
-is possible that the `BondState` structure will have to be split into two sub-structures. 
+is possible that the `BondState` structure will have to be split into two sub-structures.
+
+# Todo
+ - Documentation should be updated to account for the fact that the bond origin has been
+   moved back to the first atoms position.
 """
 struct BondState{T<:SVector{3, <:AbstractFloat}, B<:Bool} <: AbstractState
     rr::T
@@ -133,10 +125,18 @@ This is only valid for bond states whose atomic positions are given relative to 
 of the bond; i.e. `envelope.λ≡0`.
 """
 function reflect(state::T) where T<:BondState
-    if state.bond
-        return T(-state.rr, -state.rr0, true)
+    @static if BOND_ORIGIN_AT_MIDPOINT
+        if state.bond
+            return T(-state.rr, -state.rr0, true)
+        else
+            return T(state.rr, -state.rr0, false)
+        end
     else
-        return T(state.rr, -state.rr0, false)
+        if state.bond
+            return T(-state.rr, -state.rr0, true)
+        else
+            return T(state.rr - state.rr0, -state.rr0, false)
+        end
     end
 end
 
@@ -224,11 +224,8 @@ function get_state(
     #   - Combine the neighbour lists of atom i and j rather than just the former. This
     #     will reduce the probably of spurious state construction. But will increase run
     #     time as culling of duplicate states and bond states will be required.
-
-    # Guard against instances where a non-zero envelope.λ value is used. When λ is set to
-    # zero it means that all positions are relative to the mid-point of the bond. If this
-    # is not the case then must more work is required elsewhere in the code. 
-    @assert envelope.λ == 0.0 "Non-zero envelope λ values are not supported" 
+    #   - rr for the bond really should be halved and inverted to match up with the
+    #     environmental coordinate system.
 
     # Neighbour list cutoff distance; accounting for distances being relative to atom `i`
     # rather than the bond's mid-point
@@ -262,23 +259,27 @@ function get_state(
     # `idx==0` to maintain type stability.
     @views vecs_no_bond = vecs[1:end .!= idx]
     
-    # As the mid-point of the bond is used as the origin an offset is needed to shift
-    # vectors so they're relative to the bond's midpoint and not atom `i`.
-    offset =  rr0 / 2.0
-
     # `BondState` entity vector 
     states = Vector{BondState{typeof(rr0), Bool}}(undef, length(vecs_no_bond) + 1)
 
     # Construct the bond vector state; i.e where `bond=true`
-    states[1] = BondState(rr0/2.0, rr0, true)
+    states[1] = BondState(rr0, rr0, true)
+    
+    @static if BOND_ORIGIN_AT_MIDPOINT
+        # As the mid-point of the bond is used as the origin an offset is needed to shift
+        # vectors so they're relative to the bond's midpoint and not atom `i`.
+        offset =  rr0 * 0.5
+    end
 
     # Construct the environmental atom states; i.e. where `bond=false`.
-    for k=1:length(vecs_no_bond)
-        # Offset the vectors as needed. The vector is currently rounded to eight decimal
-        # places as a temporary measure to alleviate the positional hypersensitivity of  
-        # atoms near the midpoint of the bond.
-        vec = round.(vecs_no_bond[k] - offset, digits=8)
-        states[k+1] = BondState{typeof(rr0), Bool}(vec, rr0, false)
+    for (k, v⃗) in enumerate(vecs_no_bond)
+        @static if BOND_ORIGIN_AT_MIDPOINT
+            # Offset the positions so that they are relative to the bond's midpoint.
+            states[k+1] = BondState{typeof(rr0), Bool}(v⃗ - offset, rr0, false)
+        else
+            states[k+1] = BondState{typeof(rr0), Bool}(v⃗, rr0, false)
+        end
+        
     end
     
     # Cull states outside of the bond envelope using the envelope's filter operator. This

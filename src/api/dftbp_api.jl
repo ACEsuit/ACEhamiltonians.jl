@@ -13,6 +13,9 @@ export load_model, n_orbs_per_atom, offers_species, offers_species, species_name
 
 
 
+# WARNING; THIS CODE IS NOT STABLE UNTIL THE SYMMETRY ISSUE HAS BEEN RESOLVED, DO NOT USE.
+
+
 # Todo:
 #   - resolve unit mess.
 
@@ -32,6 +35,10 @@ macro FSE(func)
                 for (exc, bt) in current_exceptions()
                     showerror(stdout, exc, bt)
                     println(stdout)
+                    println("Terminating....")
+                    # Ensure streams are flushed prior to the `exit` call below
+                    flush(stdout)
+                    flush(stderr)
                 end
                 # The Julia thread must be explicitly terminated, otherwise the DFTB+
                 # calculation will continue.
@@ -177,28 +184,53 @@ end
     return map(AtomState, positions_in_range)
 end
 
+# Method for when bond origin is the midpoint
+# function _build_bond_state(coordinates, envelope)
+#     # Build a list of static coordinate vectors, excluding the two bonding
+#     # atoms.
+#     positions = map(_F64SV, eachcol(coordinates[:, 3:end]))
 
+#     # Coordinates must be rounded to prevent stability issues associated with
+#     # noise. This mostly only effects situations where atoms lie near the mid-
+#     # point of a bond. 
+#     positions = [round.(i, digits=8) for i in positions]
+
+
+#     # The rest of this function copies code directly from `states.get_state`.
+#     # Here, rr0 is multiplied by two as vectors provided by DFTB+ point to
+#     # the midpoint of the bond. ACEhamiltonians expects the bond vector and
+#     # to be inverted, hence the second position is taken.
+#     rr0 = _F64SV(round.(coordinates[:, 2], digits=8) * 2)
+#     states = Vector{BondState{_F64SV, Bool}}(undef, length(positions) + 1)
+#     states[1] = BondState(_F64SV(round.(coordinates[:, 2], digits=8)), rr0, true)
+    
+#     for k=1:length(positions)
+#         states[k+1] = BondState{_F64SV, Bool}(positions[k], rr0, false)
+#     end
+
+#     @views mask = _inner_evaluate.(Ref(envelope), states[2:end]) .!= 0.0
+#     @views n = sum(mask) + 1
+#     @views states[2:n] = states[2:end][mask]
+#     return states[1:n]
+# end
+
+# Method for when bond origin is the first atoms position
 function _build_bond_state(coordinates, envelope)
     # Build a list of static coordinate vectors, excluding the two bonding
     # atoms.
     positions = map(_F64SV, eachcol(coordinates[:, 3:end]))
 
-    # Coordinates must be rounded to prevent stability issues associated with
-    # noise. This mostly only effects situations where atoms lie near the mid-
-    # point of a bond. 
-    positions = [round.(i, digits=8) for i in positions]
-
-
     # The rest of this function copies code directly from `states.get_state`.
     # Here, rr0 is multiplied by two as vectors provided by DFTB+ point to
     # the midpoint of the bond. ACEhamiltonians expects the bond vector and
     # to be inverted, hence the second position is taken.
-    rr0 = _F64SV(round.(coordinates[:, 2], digits=8) * 2)
+    rr0 = _F64SV(coordinates[:, 2] * 2)
+    offset = rr0 / 2
     states = Vector{BondState{_F64SV, Bool}}(undef, length(positions) + 1)
-    states[1] = BondState(_F64SV(round.(coordinates[:, 2], digits=8)), rr0, true)
+    states[1] = BondState(_F64SV(coordinates[:, 2] * 2), rr0, true)
     
     for k=1:length(positions)
-        states[k+1] = BondState{_F64SV, Bool}(positions[k], rr0, false)
+        states[k+1] = BondState{_F64SV, Bool}(positions[k] + offset, rr0, false)
     end
 
     @views mask = _inner_evaluate.(Ref(envelope), states[2:end]) .!= 0.0
@@ -305,5 +337,21 @@ end
     end
 
 end
+
+
+# if model.label == "H"
+#     basis = model.off_site_bases[(species[1], species[2], 1, 1)]
+#     state = _build_bond_state(coordinates, envelope(basis))
+#     dump("states.bin", state)
+#     dump("atom_blocks.bin", block)
+# end
+
+# function dump(path, data::T) where T
+#     data_set = isfile(path) ? deserialize(path) : T[]
+#     append!(data_set, (data,))
+#     serialize(path, data_set)
+#     nothing
+# end
+
 
 end
