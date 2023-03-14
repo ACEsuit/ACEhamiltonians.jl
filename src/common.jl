@@ -1,7 +1,7 @@
 module Common
 using ACEhamiltonians
 using JuLIP: Atoms
-export parse_key, with_cache, number_of_orbitals, species_pairs, shell_pairs
+export parse_key, with_cache, number_of_orbitals, species_pairs, shell_pairs, number_of_shells, test_function
 
 # Converts strings into tuples of integers or integers as appropriate. This function
 # should be refactored and moved to a more appropriate location. It is mostly a hack
@@ -28,7 +28,8 @@ end
 """Nᵒ of orbitals present on a specific element, `z`, based on a given basis definition."""
 number_of_orbitals(z::I, basis_definition::BasisDef) where I<:Integer = sum(basis_definition[z] * 2 .+ 1)
 
-
+"""Nᵒ of shells present on a specific element, `z`, based on a given basis definition."""
+number_of_shells(z::I, basis_definition::BasisDef) where I<:Integer = length(basis_definition[z])
 
 """
 Todo:
@@ -47,11 +48,12 @@ measure and will be refactored at a later data.
 """
 function with_cache(func::Function)::Function
     cache = Dict()
-    function cached_function(args...)
-        if !haskey(cache, args)
-            cache[args] = func(args...)
+    function cached_function(args...; kwargs...)
+        k = (args..., kwargs...)
+        if !haskey(cache, k)
+            cache[k] = func(args...; kwargs...)
         end
-        return cache[args]
+        return cache[k]
     end
     return cached_function
 end

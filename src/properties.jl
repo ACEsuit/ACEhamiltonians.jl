@@ -5,7 +5,7 @@ module Properties
 
 using ACEhamiltonians, LinearAlgebra
 
-export real_to_complex!, real_to_complex, band_structure, density_of_states
+export real_to_complex!, real_to_complex, band_structure, density_of_states, eigenvalue_confidence_interval
 
 
 const _π2im = -2.0π * im
@@ -18,17 +18,85 @@ end
 phase(k::AbstractVector, T::AbstractVector) = exp(_π2im * (k ⋅ T))
 phase(k::AbstractVector, T::AbstractMatrix) = exp.(_π2im * (k' * T))
 
-function real_to_complex!(A_complex::AbstractMatrix{C}, A_real::AbstractArray{F, 3}, T::AbstractMatrix, k_point) where {C<:Complex, F<:AbstractFloat}
+function real_to_complex!(A_complex::AbstractMatrix{C}, A_real::AbstractArray{F, 3}, T::AbstractMatrix, k_point; sym=false) where {C<:Complex, F<:AbstractFloat}
     for i=1:size(T, 2)
         @views A_complex .+= A_real[:, :, i] .* phase(k_point, T[:, i])
+    end
+    if sym
+        A_complex .= (A_complex + A_complex') * 0.5
     end
     nothing
 end
 
-function real_to_complex(A_real::AbstractArray{F, 3}, T, k_point::Vector) where F<:AbstractFloat
+
+"""
+    real_to_complex(A_real, T, k_point[; sym=false])
+
+Compute the complex matrix at a given k-point for a given real-space matrix.
+
+# Arguments
+ - `A_real`: real-space matrix of size N×N×T, where N is the number of atomic
+    orbitals and T the number of cell translation vectors.
+ - `T`: cell translation vector matrix of size 3×T.
+ - `k_point`: the k-points for which the complex matrix should be returned.
+ - `sym`: if true the resulting matrix will be symmetrised prior to its return.
+
+# Returns
+ - `A_complex`: the real space matrix evaluated at the requested k-point.
+
+"""
+function real_to_complex(A_real::AbstractArray{F, 3}, T, k_point::Vector; sym=false) where F<:AbstractFloat
     A_complex = zeros(Complex{F}, size(A_real, 2), size(A_real, 2))
-    real_to_complex!(A_complex, A_real, T, k_point)
+    real_to_complex!(A_complex, A_real, T, k_point; sym=sym)
     return A_complex
+end
+
+
+function eigenvalue_confidence_interval(H, H̃, S, S̃, T, k_points, posterior=false)
+    n = size(H, 1)
+    C = complex(valtype(H))
+
+    H_k = Matrix{C}(undef, n, n)
+    S_k = Matrix{C}(undef, n, n)
+    H̃_k = Matrix{C}(undef, n, n)
+    S̃_k = Matrix{C}(undef, n, n)
+    ΔH = Matrix{C}(undef, n, n)
+    ΔS = Matrix{C}(undef, n, n)
+
+    results = Matrix{valtype(H)}(undef, n, size(k_points, 2))
+
+    for (i, k_point) in enumerate(eachcol(k_points))
+        fill!(H_k, zero(C))
+        fill!(S_k, zero(C))
+        fill!(H̃_k, zero(C))
+        fill!(S̃_k, zero(C))
+
+        real_to_complex!(H_k, H, T, k_point)
+        real_to_complex!(S_k, S, T, k_point)
+        real_to_complex!(H̃_k, H̃, T, k_point)
+        real_to_complex!(S̃_k, S̃, T, k_point)
+
+        ΔH[:, :] = H̃_k - H_k
+        ΔS[:, :] = S̃_k - S_k
+        
+        ϵ, φ = eigen!(H_k, S_k);
+
+        ϵₜ = let
+            if !posterior
+                ϵ
+            else
+                eigen!(H̃_k, S̃_k).values()
+            end
+        end 
+
+        for (j, (ϵᵢ, φᵢ)) in enumerate(zip(ϵₜ, eachcol(φ)))
+   
+            results[j, i] = real.(φᵢ' * ((ΔH - ϵᵢ * ΔS) * φᵢ))
+        end
+
+    end
+
+    return results
 end
 
 

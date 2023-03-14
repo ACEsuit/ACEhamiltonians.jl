@@ -192,9 +192,12 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
    if Solver == "QR"
       return real(qr(A) \ Y)
    elseif Solver == "LSQR"
-      Ad, Yd = distribute(A), distribute(Y)
-      res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
-      close(Ad), close(Yd)
+      # The use of distributed arrays is still causing a memory leak. As such the following
+      # code has been disabled until further notice.
+      # Ad, Yd = distribute(A), distribute(Y)
+      # res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
+      # close(Ad), close(Yd)
+      res = real(IterativeSolvers.lsqr(A, Y; atol = 1e-6, btol = 1e-6))
       return res
    elseif Solver == "ARD"
       return linear_solve(SKLEARN_ARD(), A, Y)

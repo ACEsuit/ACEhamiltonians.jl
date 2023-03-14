@@ -7,10 +7,9 @@ using ACE: ACEConfig, AbstractState, evaluate
 using ACEhamiltonians.States: _get_states
 using ACEhamiltonians.Fitting2: _evaluate_real
 
+using ACEhamiltonians: DUEL_BASIS_MODEL
+
 export predict, predict!, cell_translations
-
-
-
 
 
 """
@@ -38,7 +37,8 @@ cell [i, j, k] is present then the cell [-i, -j, -k] will also be present.
 function cell_translations(atoms::Atoms{T}, cutoff) where T<:AbstractFloat
 
     l⃗, x⃗ = atoms.cell, atoms.X
-    n_atoms::Int = size(x⃗, 2)
+    # n_atoms::Int = size(x⃗, 2)
+    n_atoms::Int = size(x⃗, 1)
     
     # Identify how many cell images can fit within the cutoff distance.
     aₙ, bₙ, cₙ = convert.(Int, cld.(cutoff, norm.(eachrow(l⃗))))
@@ -115,10 +115,10 @@ are placed directly into the supplied matrix `values.`
 
 # Arguments
  - `values::AbstractMatrix`: matrix into which the results should be placed.
- - `basis::Basis`: basis to be evaluated.
+ - `basis::AHBasis`: basis to be evaluated.
  - `state::Vector{States}`: state upon which the `basis` should be evaluated. 
 """
-function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:Basis, S<:AbstractState}
+function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:AHBasis, S<:AbstractState}
     # If the model has been fitted then use it to predict the results; otherwise just
     # assume the results are zero.
     if is_fitted(basis)
@@ -128,13 +128,20 @@ function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:
         B = _evaluate_real(A)
         values .= (basis.coefficients' * B) + basis.mean
 
-        # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON>>>>>>>>>>
-        if T<:AnisoBasis
-            A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
-            B = _evaluate_real(A)
-            values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
+        @static if DUEL_BASIS_MODEL
+            if T<: AnisoBasis
+                A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
+                B = _evaluate_real(A)
+                values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
+            elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
+                # If the duel basis model is being used then it is assumed that the symmetry
+                # issue has not been resolved thus an additional symmetrisation operation is
+                # required.
+                A = evaluate(basis.basis, ACEConfig(reflect.(state)))
+                B = _evaluate_real(A)
+                values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
+            end
         end
-        # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON<<<<<<<<<<
 
     else
         fill!(values, 0.0)
@@ -146,7 +153,7 @@ end
 
 """
 """
-function predict(basis::Basis, states::Vector{<:AbstractState})
+function predict(basis::AHBasis, states::Vector{<:AbstractState})
     # Create a results matrix to hold the predicted values. The shape & type information
     # is extracted from the basis. However, complex types will be converted to their real
     # equivalents as results in ACEhamiltonians are always real. With the current version
@@ -164,7 +171,7 @@ Predict the values for a collection of sub-blocks by evaluating the provided bas
 specified states. This is a the batch operable variant of the primary `predict!` method. 
 
 """
-function predict!(values::AbstractArray{<:Any, 3}, basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::AbstractArray{<:Any, 3}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
         @views predict!(values[:, :, i], basis, states[i])
     end
@@ -173,7 +180,7 @@ end
 
 """
 """
-function predict(basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict(basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     # Construct and fill a matrix with the results from multiple states
     n, m, type = ACE.valtype(basis.basis).parameters[3:5]
     values = Array{real(type), 3}(undef, n, m, length(states))
@@ -185,7 +192,7 @@ end
 # Special version of the batch operable `predict!` method that is used when scattering data
 # into a Vector of AbstractMatrix types rather than into a three dimensional tensor. This
 # is implemented to facilitate the scattering of data into collection of sub-view arrays.
-function predict!(values::Vector{<:Any}, basis::Basis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::Vector{<:Any}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
         @views predict!(values[i], basis, states[i])
     end
@@ -207,7 +214,11 @@ function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, Abstra
     end
 end
 
-function _predict(model, atoms, cell_indices; oai=false)
+function _predict(model, atoms, cell_indices)
+
+    # Todo:-
+    #   - use symmetry to prevent having to compute data for cells reflected
+    #     cell pairs; i.e. [ 0,  0,  1] & [ 0,  0, -1]
 
     basis_def = model.basis_definition
     n_orbs = number_of_orbitals(atoms, basis_def)
@@ -218,9 +229,8 @@ function _predict(model, atoms, cell_indices; oai=false)
     # Mirror index map array required by `_reflect_block_idxs!`
     mirror_idxs = _mirror_idxs(cell_indices)
 
-    # If the on-site blocks are to be approximated as a diagonal then set the diagonal
-    # of the first/origin cell to 1.0.
-    if oai 
+    # The on-site blocks of overlap matrices are approximated as identity matrix.
+    if model.label ≡ "S"
         matrix[1:n_orbs+1:n_orbs^2] .= 1.0
     end
 
@@ -253,32 +263,38 @@ function _predict(model, atoms, cell_indices; oai=false)
             off_site_states = _get_states( # Build states for the off-site atom-blocks
                 off_blockᵢ, atoms, envelope(basis_off), cell_indices)
             
-            let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
-                set_sub_blocks!( # Assign off-site sub-blocks to the matrix
-                    matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+            # Don't try to compute off-site interactions if none exist
+            if length(off_site_states) > 0
+                let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+                    set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
-                
-                _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
-                values = permutedims(values, (2, 1, 3))
-                set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
-                    matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    
+                    _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+                    values = permutedims(values, (2, 1, 3))
+                    set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                end
             end
 
             
             # Evaluate on-site terms for homo-atomic interactions; but only if not instructed
             # to approximate the on-site sub-blocks as identify matrices.
-            if species₁ ≡ species₂ && !oai
+            if species₁ ≡ species₂ && model.label ≠ "S"
                 # Get the on-site basis and construct the on-site states
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
-
-                let values = predict(basis_on, on_site_states) # Predict on-site sub-blocks
-                    set_sub_blocks!( # Assign on-site sub-blocks to the matrix
-                        matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
-                    
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(  # Assign data to the symmetrically equivalent blocks
-                        matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                
+                # Don't try to compute on-site interactions if none exist
+                if length(on_site_states) > 0
+                    let values = predict(basis_on, on_site_states) # Predict on-site sub-blocks
+                        set_sub_blocks!( # Assign on-site sub-blocks to the matrix
+                            matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+                        
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(  # Assign data to the symmetrically equivalent blocks
+                            matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
                 end
             end
 
@@ -289,7 +305,15 @@ function _predict(model, atoms, cell_indices; oai=false)
 end
 
 
-function _predict(model, atoms; oai=false)
+function _predict(model, atoms)
+    # Currently this method has the tendency to produce non-positive definite overlap
+    # matrices when working with the aluminum systems, however this is not observed in
+    # the silicon systems. As such this function should not be used for periodic systems
+    # until the cause of this issue can be identified. 
+    @warn "This function is not to be trusted"
+    # TODO:
+    #   - It seems like the `filter_idxs_by_bond_distance` method is not working as intended
+    #     as results change based on whether this is enabled or disabled.
 
     # See comments in the real space matrix version of `predict` more information. 
     basis_def = model.basis_definition
@@ -297,9 +321,9 @@ function _predict(model, atoms; oai=false)
 
     matrix = zeros(n_orbs, n_orbs)
 
-    # If the on-site blocks are to be approximated as a diagonal then set the diagonal
-    # of the matrix to 1.0.
-    if oai 
+    # If constructing an overlap matrix then the on-site blocks can just be set to
+    # an identify matrix.
+    if model.label ≡ "S" 
         matrix[1:n_orbs+1:end] .= 1.0
     end
     
@@ -324,30 +348,34 @@ function _predict(model, atoms; oai=false)
             off_site_states = _get_states(
                 off_blockᵢ, atoms, envelope(basis_off))
             
-            let values = predict(basis_off, off_site_states)
-                set_sub_blocks!(
-                    matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+            if length(off_site_states) > 0 
+                let values = predict(basis_off, off_site_states)
+                    set_sub_blocks!(
+                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
-                
-                _reflect_block_idxs!(off_blockᵢ)
-                values = permutedims(values, (2, 1, 3))
-                set_sub_blocks!(
-                    matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    
+                    _reflect_block_idxs!(off_blockᵢ)
+                    values = permutedims(values, (2, 1, 3))
+                    set_sub_blocks!(
+                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                end
             end
 
             
-            if species₁ ≡ species₂ && !oai
-                
+            if species₁ ≡ species₂ && model.label ≠ "S"
                 basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
+                
 
-                let values = predict(basis_on, on_site_states)
-                    set_sub_blocks!(
-                        matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
-                    
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(
-                        matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                if length(on_site_states) > 0
+                    let values = predict(basis_on, on_site_states)
+                        set_sub_blocks!(
+                            matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+                        
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(
+                            matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
                 end
             end
 
@@ -356,9 +384,6 @@ function _predict(model, atoms; oai=false)
     
     return matrix    
 end
-
-
-
 
 
 # ╭───────────────────────────╮

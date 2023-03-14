@@ -347,9 +347,9 @@ Load the calculated Fermi level (chemical potential).
 - `fermi_level::AbstractFloat`: the fermi level.
 """
 function load_fermi_level(src)
-  # Todo:
-  #   - This really should make use of unit attribute that is provided. 
-  return read(src, "Data/fermi_level")
+    # Todo:
+    #   - This really should make use of unit attribute that is provided. 
+    return read(src, "Data/fermi_level")
 end
 
 
@@ -358,6 +358,12 @@ end
 function _load_old_hamiltonian(path::String)
     return h5open(path) do database
         read(database, "aitb/H")[:, :]
+    end
+end
+
+function _load_old_overlap(path::String)
+    return h5open(path) do database
+        read(database, "aitb/S")[:, :]
     end
 end
 
@@ -372,23 +378,7 @@ function _load_old_atoms(path::String; groupname=nothing)
                         pbc = [true, true, true])
         return atoms
     end
+
 end
 
-
-# Save methods are unlikely to be useful at this point in time.
-# """
-
-# Serialise a `JuLIP.Atoms` object into an HDF5 `Group`.
-
-# # Arguments
-# - `target::Group`: top level HDF5 `Group` of the target system. This is the location
-#   into which a new "Structure" group will be placed containing all the relevant data.
-
-
-# """
-# function save_atoms(target::Group, atoms::Atoms)
-# end
 end
-
-
-

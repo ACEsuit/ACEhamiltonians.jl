@@ -8,13 +8,15 @@ using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
 using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
 
+using ACEhamiltonians: DUEL_BASIS_MODEL
+
 export fit!
 
 # Once the bond inversion issue has been resolved the the redundant models will no longer
 # be required. The changes needed to be made in this file to remove the redundant model
 # are as follows:
 #   - Remove inverted state condition in single model `fit!` method.
-#   - `_assemble_ls` should take `Basis` entities.
+#   - `_assemble_ls` should take `AHBasis` entities.
 #   - Remove inverted state condition from the various `predict` methods.
 
 # Todo:
@@ -51,61 +53,6 @@ function _evaluate_real(Aval)
    return real([ C1 * Aval[i].val * C2' for i = 1:length(Aval)])
 end
 
-# function _evaluate_real(Aval)
-#     # This would be far more efficient if it were batch operable.
-#     # The logic used here is rerun continuously which is highly wasteful.
-
-#     n₁, n₂ = size(Aval[1])
-#     ℓ₁, ℓ₂ = Int((n₁ - 1) / 2), Int((n₂ - 1) / 2)
-
-#     # allocate Aval_real
-#     Aval_real = [zeros(ComplexF64, n₁, n₂) for i = 1:length(Aval)]
-#     # reconstruct real A
-#     # TODO: I believe that there must exist a matrix form... But I will keep it for now...
-#     for k=1:length(Aval)
-
-#         A = Aval[k].val
-#         for i=1:n₁, j=1:n₂
-#             # Magnetic quantum numbers
-#             m₁, m₂ = i - ℓ₁ - 1, j - ℓ₂ - 1
-            
-#             val = A[i,j]
-            
-#             if m₁ < 0
-#                 val -= (-1)^(m₁) * A[end-i+1,j]
-#             elseif m₁ > 0
-#                 val += (-1)^(m₁) * A[end-i+1,j]
-#             end
-
-#             if (m₁ > 0 < m₂) || (m₁ < 0 > m₂)
-#                 val += (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
-#             elseif (m₁ > 0 > m₂) || (m₁ < 0 < m₂)
-#                 val -= (-1)^(m₁ + m₂) * A[end-i+1, end-j+1]
-#             end
-#             if m₂ < 0
-#                 val -= (-1)^(m₂) * A[i, end-j+1]
-#             elseif m₂ > 0
-#                 val += (-1)^(m₂) * A[i, end-j+1]
-#             end
-
-#             # This could be applied as a matrix to the full block
-#             s = ((m₁ >= 0) && (m₂ < 0)) ? -1 : 1 # Account for sign flip until mess is sorted
-#             plane = (m₁ >= 0) ⊻ (m₂ >= 0) ? im : 1
-#             scale = m₁ == 0 ? (m₂ == 0 ? 1 : 1/√2) : (m₂ == 0 ? 1/√2 : 1/2)
-
-#             Aval_real[k][i,j] = scale * plane * (s * (val))
-#         end
-
-#         # Prefactor "scale" could be applied here as a matrix operation
-#     end
-#     #return Aval_real
-#     if norm(Aval_real - real(Aval_real))<1e-12
-#         return real(Aval_real)
-#     else
-#         error("norm = $(norm(Aval_real - real(Aval_real))), please recheck...")
-#     end
-# end
-
 """
 """
 function _assemble_ls(basis::SymmetricBasis, data::T, nonzero_mean::Bool=false) where T<:AbstractFittingDataSet
@@ -134,7 +81,6 @@ function _assemble_ls(basis::SymmetricBasis, data::T, nonzero_mean::Bool=false) 
     Y .-= Ref(x̄)
     return A, Y, x̄
 
-
 end
 
 
@@ -151,12 +97,13 @@ Fits a specified model with the supplied data.
 - `basis`: basis that is to be fitted.
 - `data`: data that the basis is to be fitted to.
 - `nonzero_mean::Bool`: setting this flag to true enables a non-zero mean to be
-    used.
+   used.
+- `λ::AbstractFloat`: regularisation term to be used (default=1E-7).
+- `solver::String`: solver to be used (default="LSQR")
 """
-function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false) where {T₁<:Basis, T₂<:AbstractFittingDataSet}
-    # Lambda term should not be hardcoded to 1e-7!
+function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false, λ=1E-7, solver="LSQR") where {T₁<:AHBasis, T₂<:AbstractFittingDataSet}
 
-    # Get the basis function's scaling factor (?)
+    # Get the basis function's scaling factor
     Γ = Diagonal(scaling(basis.basis, 2))
 
     # Setup the least squares problem
@@ -166,16 +113,17 @@ function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false) where {T₁<:Ba
     basis.mean .= x̄
 
     # Solve the least squares problem and get the coefficients
-    basis.coefficients .= collect(solve_ls(Φ, Y, 1e-7, Γ, "LSQR"))
 
-    # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON>>>>>>>>>>
-    if T₁<:AnisoBasis
-        Γ = Diagonal(scaling(basis.basis_i, 2))
-        Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', nonzero_mean)
-        basis.mean_i .= x̄
-        basis.coefficients_i .= collect(solve_ls(Φ, Y, 1e-7, Γ, "LSQR"))
+    basis.coefficients .= collect(solve_ls(Φ, Y, λ, Γ, solver))
+
+    @static if DUEL_BASIS_MODEL
+        if T₁<:AnisoBasis
+            Γ = Diagonal(scaling(basis.basis_i, 2))
+            Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', nonzero_mean)
+            basis.mean_i .= x̄
+            basis.coefficients_i .= collect(solve_ls(Φ, Y, λ, Γ, solver))
+        end
     end
-    # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON<<<<<<<<<<
 
     nothing
 end
@@ -200,20 +148,133 @@ Fits a specified model to the supplied data.
 - `model::Model`: Model to be fitted.
 - `systems::Vector{Group}`: HDF5 groups storing data with which the model should
     be fitted.
-- `target::Symbol`: a symbol indicating which matrix should be fitted. This may be either
-    `H` or `S`.
 - `tolerance::AbstractFloat`: only sub-blocks where at least one value is greater than
     or equal to `tolerance` will be fitted. This argument permits spars blocks to be
     ignored.
 - `filter_bonds::Bool`: Ignores interactions beyond the specified cutoff.
-- `recenter::Bool`: Enabling this will re-wrap atomic coordinates to be consistent with
+- `recentre::Bool`: Enabling this will re-wrap atomic coordinates to be consistent with
     the geometry layout used internally by FHI-aims. This should be used whenever loading
     real-space matrices generated by FHI-aims.
-
+- `refit::Bool`: By default already fitted bases will not be refitted, but this behaviour
+    can be suppressed by setting `refit=true`.
+- `target::String`: a string indicating which matrix should be fitted. This may be either
+    `H` or `S`. If unspecified then the model's `.label` field will be read and used. 
 """
 function fit!(
-    model::Model, systems::Vector{Group}, target::Symbol;
-    tolerance::F=0.0, filter_bonds::Bool=true, recenter::Bool=false) where F<:AbstractFloat
+    model::Model, systems::Vector{Group}; tolerance::Union{F, Nothing}=nothing,
+    filter_bonds::Bool=true, recentre::Bool=false, 
+    target::Union{String, Nothing}=nothing, refit::Bool=false) where F<:AbstractFloat
+    
+    # Todo:
+    #   - Modify so that redundant data is not extracted; i.e. both A[0,0,0] -> A[1,0,0] and
+    #     A[0,0,0] -> A[-1,0,0]
+    #   - Check that the relevant data exists before trying to extract it; i.e. don't bother
+    #     trying to gather carbon on-site data from an H2 system.
+    #   - Currently the basis set definition is loaded from the first system under the
+    #     assumption that it is constant across all systems. However, this will break down
+    #     if different species are present in each system.
+    #   - The approach currently taken limits io overhead by reducing redundant operations.
+    #     However, this will likely use considerably more memory.
+    #   - Don't fit on-site bases for overlap matrix models.
+
+    # Section 1: Gather the data
+
+    # If no target has been specified; then default to that given by the model's label.
+    
+    target = isnothing(target) ? model.label : target
+
+    get_matrix = Dict(  # Select an appropriate function to load the target matrix
+        "H"=>load_hamiltonian, "S"=>load_overlap,
+        "Hg"=>load_hamiltonian_gamma, "Sg"=>load_overlap_gamma)[target]
+
+    fitting_data = Dict{Any, DataSet}()
+
+    # Loop over the specified systems
+    for system in systems
+
+        # Load the required data from the database entry
+        matrix, atoms = get_matrix(system), load_atoms(system; recentre=recentre)
+        images = ndims(matrix) == 2 ? nothing : load_cell_translations(system)
+        
+        # Loop over the on site bases and collect the appropriate data
+        for basis in values(model.on_site_bases)
+            data_set = get_dataset(matrix, atoms, basis, model.basis_definition, images; tolerance=tolerance)
+            _append_data!(fitting_data, basis.id, data_set)
+        end 
+
+        # Repeat for the off-site models
+        for basis in values(model.off_site_bases)
+            data_set = get_dataset(
+                matrix, atoms, basis, model.basis_definition, images;
+                tolerance=tolerance, filter_bonds=filter_bonds)
+
+            _append_data!(fitting_data, basis.id, data_set)
+
+        end         
+    end
+
+    # Fit the on/off-site models
+    fit!(model, fitting_data; refit=refit)
+    
+end
+
+
+"""
+    fit!(model, fitting_data[; refit])
+
+
+Fit the specified model using the provided data.
+
+# Arguments
+- `model::Model`: the model that should be fitted.
+- `fitting_data`: dictionary providing the data to which the supplied model should be
+  fitted. This should hold one entry for each basis that is to be fitted and should take
+  the form `{Basis.id, DataSet}`.
+- `refit::Bool`: By default, already fitted bases will not be refitted, but this behaviour
+  can be suppressed by setting `refit=true`.
+"""
+function fit!(
+    model::Model, fitting_data; refit::Bool=false)
+
+    @info "Fitting off site bases:"
+    for (id, basis) in model.off_site_bases
+        if !haskey(fitting_data, id)
+            @info "Skipping $(id): no fitting data provided"
+        elseif is_fitted(basis) && !refit
+            @info "Skipping $(id): basis already fitted"
+        elseif length(fitting_data) ≡ 0
+            @info "Skipping $(id): fitting dataset is empty"
+        else
+            @info "Fitting $(id): using $(length(fitting_data[id])) fitting points"
+            fit!(basis, fitting_data[id])
+        end    
+    end
+
+    @info "Fitting on site bases:"
+    for (id, basis) in model.on_site_bases
+        if !haskey(fitting_data, id)
+            @info "Skipping $(id): no fitting data provided"
+        elseif is_fitted(basis) && !refit
+            @info "Skipping $(id): basis already fitted"
+        elseif length(fitting_data) ≡ 0
+            @info "Skipping $(id): fitting dataset is empty"
+        else
+            @info "Fitting $(id): using $(length(fitting_data[id])) fitting points"
+            fit!(basis, fitting_data[id]; nonzero_mean=ison(basis))
+        end    
+    end
+end
+
+
+# The following code was added to `fitting.jl` to allow data to be fitted on databases
+# structured using the original database format.
+using ACEhamiltonians.DatabaseIO: _load_old_atoms, _load_old_hamiltonian, _load_old_overlap
+using Serialization
+
+function old_fit!(
+    model::Model, systems, target::Symbol;
+    tolerance::F=0.0, filter_bonds::Bool=true, recentre::Bool=false,
+    refit::Bool=false) where F<:AbstractFloat
     
     # Todo:
     #   - Check that the relevant data exists before trying to extract it; i.e. don't bother
@@ -227,61 +288,49 @@ function fit!(
     # Section 1: Gather the data
 
     get_matrix = Dict(  # Select an appropriate function to load the target matrix
-        :H=>load_hamiltonian, :S=>load_overlap,
-        :Hg=>load_hamiltonian_gamma, :Sg=>load_overlap_gamma)[target]
+        :H=>_load_old_hamiltonian, :S=>_load_old_overlap)[target]
 
-    fitting_data = Dict{Basis, DataSet}()
+    fitting_data = IdDict{AHBasis, DataSet}()
 
     # Loop over the specified systems
-    for system in systems
-
-        # Load the required data from the database entry
-        matrix = get_matrix(system), load_atoms(system; recentre=recentre)
-        images = ndims(matrix) == 2 ? nothing : load_cell_translations(system)
+    for (database_path, index_data) in systems
         
+        # Load the required data from the database entry
+        matrix, atoms = get_matrix(database_path), _load_old_atoms(database_path)
+
+        println("Loading: $database_path")
+
         # Loop over the on site bases and collect the appropriate data
-        for basis in values(model.on_site_bases)
-            data_set = get_dataset(matrix, atoms, basis, model.basis_definition, images; tolerance=tolerance)
-            _append_data!(fitting_data,basis, data_set)
-        end 
+        if haskey(index_data, "atomic_indices")
+            println("Gathering on-site data:")
+            for basis in values(model.on_site_bases)
+                println("\t- $basis")
+                data_set = get_dataset(
+                    matrix, atoms, basis, model.basis_definition;
+                    tolerance=tolerance, focus=index_data["atomic_indices"])
+                _append_data!(fitting_data, basis, data_set)
+  
+            end
+            println("Finished gathering on-site data")
+        end
 
         # Repeat for the off-site models
-        for basis in values(model.off_site_bases)
-            data_set = get_dataset(
-                matrix, atoms, basis, model.basis_definition, images;
-                tolerance=tolerance, filter_bonds=filter_bonds)
-            
-            # >>>>>>>>>>REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON>>>>>>>>>>
-            # As ACE does not currently obey bond inversion symmetry the symmetrically
-            # equivalent datasets must also be trained on. This is done intrinsically for
-            # hetro-orbital interactions due to the use of dual models. However, the
-            # "inverse" data must be added manually for homo-orbital interactions. 
-            if (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
-                data_set += data_set'
+        if haskey(index_data, "atom_block_indices")
+            println("Gathering off-site data:")
+            for basis in values(model.off_site_bases)
+                println("\t- $basis")
+                data_set = get_dataset(
+                    matrix, atoms, basis, model.basis_definition;
+                    tolerance=tolerance, filter_bonds=filter_bonds, focus=index_data["atom_block_indices"])
+                _append_data!(fitting_data, basis, data_set)
             end
-            # <<<<<<<<<<REMOVE UPON BASIS SYMMETRY ISSUE RESOLUTON<<<<<<<<<<
-
-            _append_data!(fitting_data, basis, data_set)
-
-        end         
+            println("Finished gathering off-site data")
+        end
     end
 
     # Fit the on/off-site models
-    for (basis, data_set) in fitting_data
-        if length(data_set) ≡ 0
-            @warn "Cannot fit $(basis.id): no matching data-points found (filters may be too aggressive)"
-            continue
-        elseif is_fitted(basis)
-            @warn "Skipping $(basis.id): basis already fitted"
-        else
-            fit!(basis, data_set)
-        end
-        
-
-    end
+    fit!(model, fitting_data; refit=refit) 
 
 end
-
-
 
 end

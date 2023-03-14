@@ -4,6 +4,7 @@ using ACEhamiltonians.MatrixManipulation: BlkIdx
 using StaticArrays: SVector
 using LinearAlgebra: norm, normalize
 using ACE: AbstractState, CylindricalBondEnvelope, BondEnvelope, _evaluate_bond, _evaluate_env
+using ACEhamiltonians: BOND_ORIGIN_AT_MIDPOINT
 
 import ACEhamiltonians.Parameters: ison
 import ACE: _inner_evaluate
@@ -32,7 +33,11 @@ cases.
 
 # Developers Notes
 An additional field will be added at a later data to facilitate multi-species support. It
-is possible that the `BondState` structure will have to be split into two sub-structures. 
+is possible that the `BondState` structure will have to be split into two sub-structures.
+
+# Todo
+ - Documentation should be updated to account for the fact that the bond origin has been
+   moved back to the first atoms position.
 """
 struct BondState{T<:SVector{3, <:AbstractFloat}, B<:Bool} <: AbstractState
     rr::T
@@ -120,10 +125,18 @@ This is only valid for bond states whose atomic positions are given relative to 
 of the bond; i.e. `envelope.λ≡0`.
 """
 function reflect(state::T) where T<:BondState
-    if state.bond
-        return T(-state.rr, -state.rr0, true)
+    @static if BOND_ORIGIN_AT_MIDPOINT
+        if state.bond
+            return T(-state.rr, -state.rr0, true)
+        else
+            return T(state.rr, -state.rr0, false)
+        end
     else
-        return T(state.rr, -state.rr0, false)
+        if state.bond
+            return T(-state.rr, -state.rr0, true)
+        else
+            return T(state.rr - state.rr0, -state.rr0, false)
+        end
     end
 end
 
@@ -180,7 +193,10 @@ Construct a state representing the environment about the "bond" between atoms `i
   constructing the state. This must be centred at the bond's midpoint; i.e. `envelope.λ≡0`.
 - `image::Optional{Vector}`: a vector specifying the image in which atom `j`
   should reside; i.e. the cell translation vector. This defaults to `nothing` which will
-  result in the closets periodic image of `j` being used. 
+  result in the closets periodic image of `j` being used.
+- `r::AbstractFloat`: this can be used to manually specify the cutoff distance used when
+  building the neighbour list. This will override the locally computed value for `r` and
+  is primarily used to aid debugging.  
 
 # Returns
 - `state::Vector{::BondState}`: state objects representing the environment about the bond
@@ -202,21 +218,20 @@ distance for neighbour list construction is handled automatically.
 """
 function get_state(
     i::I, j::I, atoms::Atoms, envelope::CylindricalBondEnvelope,
-    image::Union{AbstractVector{I}, Nothing}=nothing) where {I<:Integer}
+    image::Union{AbstractVector{I}, Nothing}=nothing; r::Union{Nothing, <:AbstractFloat}=nothing) where {I<:Integer}
 
     # Todo:
     #   - Combine the neighbour lists of atom i and j rather than just the former. This
     #     will reduce the probably of spurious state construction. But will increase run
     #     time as culling of duplicate states and bond states will be required.
-
-    # Guard against instances where a non-zero envelope.λ value is used. When λ is set to
-    # zero it means that all positions are relative to the mid-point of the bond. If this
-    # is not the case then must more work is required elsewhere in the code. 
-    @assert envelope.λ == 0.0 "Non-zero envelope λ values are not supported" 
+    #   - rr for the bond really should be halved and inverted to match up with the
+    #     environmental coordinate system.
 
     # Neighbour list cutoff distance; accounting for distances being relative to atom `i`
-    # rather than the bond's mid-point.
-    r = sqrt((envelope.r0cut + envelope.zcut)^2 + envelope.rcut^2)
+    # rather than the bond's mid-point
+    if isnothing(r)
+        r = sqrt((envelope.r0cut + envelope.zcut)^2 + envelope.rcut^2)
+    end
 
     # Neighbours list construction (about atom `i`)
     idxs, vecs, cells = _neighbours(i, atoms, r)
@@ -244,21 +259,27 @@ function get_state(
     # `idx==0` to maintain type stability.
     @views vecs_no_bond = vecs[1:end .!= idx]
     
-    # As the mid-point of the bond is used as the origin an offset is needed to shift
-    # vectors so they're relative to the bond's midpoint and not atom `i`.
-    offset =  rr0 / 2.0
-
     # `BondState` entity vector 
     states = Vector{BondState{typeof(rr0), Bool}}(undef, length(vecs_no_bond) + 1)
 
     # Construct the bond vector state; i.e where `bond=true`
-    states[1] = BondState(rr0/2.0, rr0, true)
+    states[1] = BondState(rr0, rr0, true)
+    
+    @static if BOND_ORIGIN_AT_MIDPOINT
+        # As the mid-point of the bond is used as the origin an offset is needed to shift
+        # vectors so they're relative to the bond's midpoint and not atom `i`.
+        offset =  rr0 * 0.5
+    end
 
     # Construct the environmental atom states; i.e. where `bond=false`.
-    for k=1:length(vecs_no_bond)
-        # Offset the vectors as needed and guard against erroneous positions.
-        vec = _guard_position(vecs_no_bond[k] - offset, rr0, i, j)
-        states[k+1] = BondState{typeof(rr0), Bool}(vec, rr0, false)
+    for (k, v⃗) in enumerate(vecs_no_bond)
+        @static if BOND_ORIGIN_AT_MIDPOINT
+            # Offset the positions so that they are relative to the bond's midpoint.
+            states[k+1] = BondState{typeof(rr0), Bool}(v⃗ - offset, rr0, false)
+        else
+            states[k+1] = BondState{typeof(rr0), Bool}(v⃗, rr0, false)
+        end
+        
     end
     
     # Cull states outside of the bond envelope using the envelope's filter operator. This
@@ -270,8 +291,6 @@ function get_state(
     return states[1:n]
 
 end
-
-
 
 # Commonly one will need to collect multiple states rather than single states on their
 # own. Hence the `get_state[s]` functions. These functions have been tagged for internal
@@ -312,7 +331,6 @@ function _get_states(block_idxs::BlkIdx, atoms::Atoms{T}, envelope::CylindricalB
         # If size(block_idxs,1) == 2, i.e. no cell index is supplied then this will error out.
         # Thus not manual error handling is required. If images are supplied then block_idxs
         # must contain the image index.
-        # println("$(size(block_idxs[1, :])), $(size(block_idxs[2, :])), $(size())")
         return get_state.(
             block_idxs[1, :], block_idxs[2, :], Ref(atoms),
             Ref(envelope), eachcol(images[:, block_idxs[3, :]]))::Vector{Vector{BondState{SVector{3, T}, Bool}}}
@@ -443,56 +461,6 @@ function _locate_target_image(j::I, idxs::AbstractVector{I}, images::AbstractVec
     js = findall(==(j), idxs)
     idx = findfirst(i -> all(i .== image), images[js])
     return isnothing(idx) ? zero(I) : js[idx]
-end
-
-
-"""
-    _guard_position(vec, rr0, i, j[; cutoff=0.05])
-
-Clean environmental bond state positions to prevent erroneous behaviour.
-
-If, when constructing a `BondState` entity, an environmental atom is found to lie too close
-to the midpoint between the two bonding atoms then ACE will crash. Thus, such cases must be
-carefully checked for and, when encountered, a small offset applied.
-
-# Arguments
-- `vec`: the vector to be checked and, if necessary, cleaned. This should be relative to
-  the midpoint of the bond.
-- `rr0`: bond vector.
-- `i`: index of the first bonding atom.
-- `j`: index of the second bonding atom.
-- `cutoff`: the minimum permitted distance from the origin. Vectors closer to the origin
-  than this value will be offset. 
-
-# Returns
-- `vec`: the original vector `vec` or a safely offset version thereof.
-
-# Notes
-While best efforts have been made to make the offset as reproducible as possible it is not
-invariant to permutation for instances where the atom lies **exactly** at the midpoint.
-
-"""
-function _guard_position(vec::T, rr0::T, i::I, j::I; cutoff=0.05) where {I<:Integer, T}
-    # If the an environmental atom lies too close to the origin it must be offset to avoid
-    # errors. While this introduces noise, it is better than not being able to fit. A
-    # better solution should be found where and if possible. 
-    vec_norm = norm(vec)
-    
-    # If the vector is outside of the cutoff region then no action is required 
-    if vec_norm >= cutoff
-        return vec
-    # If the atom is inside of the cutoff region, but not at exactly at the mid-point then
-    # scale the vector so that it lies outside of the cutoff region.
-    elseif 0 < vec_norm
-        return normalize(vec) * cutoff
-    # If the atom lies exactly at the bond origin, then offset it along the bond vector.
-    elseif vec_norm == 0 
-        # Shift vector is in direction of the atom with the lowest atomic index, or if both
-        # are the same then the first atom. This helps to make the offset a little more
-        # consistent and reproducible.
-        o = i <= j ? -one(I) : one(I)
-        return normalize(rr0) * (cutoff * o)
-    end
 end
 
 
