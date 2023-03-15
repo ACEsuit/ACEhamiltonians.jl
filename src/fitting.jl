@@ -10,6 +10,7 @@ using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
 
+
 export fit!
 
 # Once the bond inversion issue has been resolved the the redundant models will no longer

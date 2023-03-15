@@ -20,6 +20,7 @@ if SYMMETRY_FIX_ENABLED && !BOND_ORIGIN_AT_MIDPOINT
     @warn "Symmetry fix code is only viable when the bond origin is set to the midpoint "
 end
 
+
 if SYMMETRY_FIX_ENABLED && DUAL_BASIS_MODEL
     @warn "It is ill advised to enable the symmetry fix when in dual basis mode"
 end
