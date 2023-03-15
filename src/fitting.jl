@@ -8,7 +8,8 @@ using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
 using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
 
-using ACEhamiltonians: DUEL_BASIS_MODEL
+using ACEhamiltonians: DUAL_BASIS_MODEL
+
 
 export fit!
 
@@ -116,7 +117,7 @@ function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false, λ=1E-7, solver
 
     basis.coefficients .= collect(solve_ls(Φ, Y, λ, Γ, solver))
 
-    @static if DUEL_BASIS_MODEL
+    @static if DUAL_BASIS_MODEL
         if T₁<:AnisoBasis
             Γ = Diagonal(scaling(basis.basis_i, 2))
             Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', nonzero_mean)
