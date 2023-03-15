@@ -5,10 +5,10 @@ using JuLIP, JSON, HDF5, Reexport
 using ACE.SphericalHarmonics: SphericalCoords
 import ACE.SphericalHarmonics: cart2spher
 
-export BasisDef, DUEL_BASIS_MODEL, BOND_ORIGIN_AT_MIDPOINT
+export BasisDef, DUAL_BASIS_MODEL, BOND_ORIGIN_AT_MIDPOINT
 
-# Enabling this will activate the duel basis mode
-const DUEL_BASIS_MODEL = true
+# Enabling this will activate the dual basis mode
+const DUAL_BASIS_MODEL = true
 
 # If `true` then bond origin will be set to the bond's mid-point
 const BOND_ORIGIN_AT_MIDPOINT = false
@@ -20,8 +20,8 @@ if SYMMETRY_FIX_ENABLED && !BOND_ORIGIN_AT_MIDPOINT
     @warn "Symmetry fix code is only viable when the bond origin is set to the midpoint "
 end
 
-if SYMMETRY_FIX_ENABLED && DUEL_BASIS_MODEL
-    @warn "It is ill advised to enable the symmetry fix when in duel basis mode"
+if SYMMETRY_FIX_ENABLED && DUAL_BASIS_MODEL
+    @warn "It is ill advised to enable the symmetry fix when in dual basis mode"
 end
 
 """

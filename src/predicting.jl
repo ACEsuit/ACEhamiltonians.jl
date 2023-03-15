@@ -7,7 +7,7 @@ using ACE: ACEConfig, AbstractState, evaluate
 using ACEhamiltonians.States: _get_states
 using ACEhamiltonians.Fitting2: _evaluate_real
 
-using ACEhamiltonians: DUEL_BASIS_MODEL
+using ACEhamiltonians: DUAL_BASIS_MODEL
 
 export predict, predict!, cell_translations
 
@@ -128,13 +128,13 @@ function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:
         B = _evaluate_real(A)
         values .= (basis.coefficients' * B) + basis.mean
 
-        @static if DUEL_BASIS_MODEL
+        @static if DUAL_BASIS_MODEL
             if T<: AnisoBasis
                 A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
                 B = _evaluate_real(A)
                 values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
             elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
-                # If the duel basis model is being used then it is assumed that the symmetry
+                # If the dual basis model is being used then it is assumed that the symmetry
                 # issue has not been resolved thus an additional symmetrisation operation is
                 # required.
                 A = evaluate(basis.basis, ACEConfig(reflect.(state)))

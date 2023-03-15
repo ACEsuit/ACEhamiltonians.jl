@@ -4,7 +4,7 @@ using ACEhamiltonians, ACE, ACEbase
 import ACEbase: read_dict, write_dict
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
 using ACEhamiltonians.Bases: AHBasis, is_fitted
-using ACEhamiltonians: DUEL_BASIS_MODEL
+using ACEhamiltonians: DUAL_BASIS_MODEL
 
 
 export Model
@@ -92,7 +92,7 @@ struct Model
                     ace_basis = ace_basis_off( # Off-site bases
                         ℓ₁, ℓ₂, off_site_parameters[id]...)
                     
-                    @static if DUEL_BASIS_MODEL
+                    @static if DUAL_BASIS_MODEL
                         if homo_atomic && n₁ == n₂
                             off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
                         else
