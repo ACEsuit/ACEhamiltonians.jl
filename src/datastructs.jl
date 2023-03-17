@@ -15,7 +15,7 @@ import ACEhamiltonians.Parameters: ison
 # `AbstractFittingDataSet` based structures contain all data necessary to perform a fit. 
 abstract type AbstractFittingDataSet end
 
-export DataSet, filter_sparse, filter_bond_distance, get_dataset, AbstractFittingDataSet, random_split, random_sample
+export DataSet, filter_sparse, filter_bond_distance, get_dataset, AbstractFittingDataSet, random_split, random_sample, random_distance_sample
 
 """
     DataSet(values, blk_idxs, states)
