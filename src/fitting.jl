@@ -56,7 +56,7 @@ end
 
 """
 """
-function _assemble_ls(basis::SymmetricBasis, data::T, nonzero_mean::Bool=false) where T<:AbstractFittingDataSet
+function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) where T<:AbstractFittingDataSet
     # This will be rewritten once the other code has been refactored.
 
     # Should `A` not be constructed using `acquire_B!`?
@@ -73,7 +73,7 @@ function _assemble_ls(basis::SymmetricBasis, data::T, nonzero_mean::Bool=false) 
     Y = [data.values[:, :, i] for i in 1:n₃]
 
     # Calculate the mean value x̄
-    if nonzero_mean && n₁ ≡ n₂ && ison(data) 
+    if enable_mean && n₁ ≡ n₂ && ison(data) 
         x̄ = mean(diag(mean(Y)))*I(n₁)
     else
         x̄ = zeros(n₁, n₂)
@@ -90,25 +90,25 @@ end
 ###################
 
 """
-    fit!(basis, data;[ nonzero_mean])
+    fit!(basis, data;[ enable_mean])
 
 Fits a specified model with the supplied data.
 
 # Arguments
 - `basis`: basis that is to be fitted.
 - `data`: data that the basis is to be fitted to.
-- `nonzero_mean::Bool`: setting this flag to true enables a non-zero mean to be
+- `enable_mean::Bool`: setting this flag to true enables a non-zero mean to be
    used.
 - `λ::AbstractFloat`: regularisation term to be used (default=1E-7).
 - `solver::String`: solver to be used (default="LSQR")
 """
-function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false, λ=1E-7, solver="LSQR") where {T₁<:AHBasis, T₂<:AbstractFittingDataSet}
+function fit!(basis::T₁, data::T₂; enable_mean::Bool=false, λ=1E-7, solver="LSQR") where {T₁<:AHBasis, T₂<:AbstractFittingDataSet}
 
     # Get the basis function's scaling factor
     Γ = Diagonal(scaling(basis.basis, 2))
 
     # Setup the least squares problem
-    Φ, Y, x̄ = _assemble_ls(basis.basis, data, nonzero_mean)
+    Φ, Y, x̄ = _assemble_ls(basis.basis, data, enable_mean)
     
     # Assign the mean value to the basis set
     basis.mean .= x̄
@@ -120,7 +120,7 @@ function fit!(basis::T₁, data::T₂; nonzero_mean::Bool=false, λ=1E-7, solver
     @static if DUAL_BASIS_MODEL
         if T₁<:AnisoBasis
             Γ = Diagonal(scaling(basis.basis_i, 2))
-            Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', nonzero_mean)
+            Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', enable_mean)
             basis.mean_i .= x̄
             basis.coefficients_i .= collect(solve_ls(Φ, Y, λ, Γ, solver))
         end
@@ -276,7 +276,7 @@ function fit!(
             @info "Skipping $(id): fitting dataset is empty"
         else
             @info "Fitting $(id): using $(length(fitting_data[id])) fitting points"
-            fit!(basis, fitting_data[id]; nonzero_mean=ison(basis))
+            fit!(basis, fitting_data[id]; enable_mean=ison(basis))
         end    
     end
 end
