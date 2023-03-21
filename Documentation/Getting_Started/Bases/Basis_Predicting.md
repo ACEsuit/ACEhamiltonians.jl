@@ -3,7 +3,7 @@ Predictions can be made for individual bases by providing a `Basis` instance alo
 
 
 # System upon which predictions are to be made.
-database_path = "batch_0.h5"
+database_path = "example_data.h5"
 target_system = "0224"
 
 # Load the atoms object

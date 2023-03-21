@@ -12,7 +12,8 @@ The `Model` structure represents a model that includes on-site and off-site base
 The guide outlines the construction, fitting, and predicting processes for both structures, providing users with an efficient and flexible way to represent interactions in various systems.
 Links to more detailed documents are also provided as necessary.
 
-Installation and setup instructions can be found at the end of this document. 
+Installation and setup instructions can be found at the end of this document.
+The `example_data.h5` dataset used throughout the examples and documentation has been supplied, and can be found within the `Files` subdirectory. 
 
 ## Models
 

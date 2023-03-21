@@ -2,7 +2,7 @@ Individual `Basis` instances may be fitted by supplying the `Basis` and fitting 
 ```julia
 
 # Path to the database within which the fitting data is stored
-database_path = "batch_0.h5"
+database_path = "example_data.h5"
 
 # Name/path of/to the system to which fitting data should be drawn 
 target_system = "0224"

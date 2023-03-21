@@ -96,7 +96,7 @@ However, units are not yet fully supported.
 An example is provided below demonstrating how one may load data from a HDF5 database.
 ```julia
 # Path to the database from which data is to be loaded
-database_path = "/home/ajmhpc/Documents/Work/Projects/ACEtb/Data/Si/Construction/batch_0.h5"
+database_path = "/home/ajmhpc/Documents/Work/Projects/ACEtb/Data/Si/Construction/example_data.h5"
 # Path, relative to the top level, to the group from which data is to be extracted
 target_system = "0224"
 

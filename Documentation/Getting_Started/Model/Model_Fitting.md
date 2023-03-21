@@ -4,7 +4,7 @@ When using the model-level automated fitting procedure, one need only specify th
 Model-level fitting can be carried out with only a few lines of code, as evident from the following example. 
 ```julia
 # Path to the database within which the fitting data is stored
-database_path = "batch_0.h5"
+database_path = "example_data.h5"
 
 # Names/paths of/to the system(s) to which the model should draw fitting data
 target_systems = ["0224"]
