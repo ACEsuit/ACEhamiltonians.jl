@@ -1,4 +1,4 @@
-
+# Model Fitting
 The `ACEhamiltonians` framework offers a variety of fitting subroutines which are capable of anything from a single basis to an entire model.
 When using the model-level automated fitting procedure, one need only specify the model to be fitted and the location(s) from which fitting data can be gathered.
 Model-level fitting can be carried out with only a few lines of code, as evident from the following example. 
@@ -23,7 +23,7 @@ end
 ```
 This particular version of `fit!` requires only two positional arguments, but accepts up to six optional keyword arguments.
 The first positional argument is the `Model` to be fitted and the second is a vector of HDF5 `Group` object(s) from which the fitting data is to be drawn.
-It is important to note that the provided HDF5 groups must follow the structure specification provided here.
+It is important to note that the provided HDF5 groups must follow the structure specification provided [here](../Data/Database_Structure.md).
 The optional keyword arguments made available are:
 
 - `on_site_filter::Function`: the `DataSet` entities for all on-site bases will be passed through this filter function prior to fitting. This function should take as `DataSet` as its only argument and yield a, possibly filtered, `DataSet` as its return. If not specified this will default to `identity`.
@@ -36,9 +36,3 @@ The optional keyword arguments made available are:
 ### Manual Fitting
 
 Alternatively, one may manually select the fitting data and place it into a dictionary keyed by basis id (`Dict(basis_id, DataSet)`). This is then provided to the fitting function along with the model like so `fit!(model, fitting_data_dictionary)`. Note that one need only provide data for the bases that one wishes to fit. 
-
-
-#### Basis Fitting
-A single `Basis` may be fitted by providing a single `Basis` and `DataSet` object to the fitting function.
-## TODO
-- Add link to the database file specification.

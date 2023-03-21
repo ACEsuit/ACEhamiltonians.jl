@@ -35,7 +35,6 @@ Database
 │ │
 │ ├─Info
 │ │ ├─Basis:
-│ │ │   > Specifies the .
 │ │ │   > This group contains one dataset for each species that specifies the 
 │ │ │   > azimuthal quantum numbers of each shell present on that species. Read
 │ │ │   > by the `load_basis_set_definition` method.
@@ -45,6 +44,8 @@ Database
 │ │ │   > A 3×N matrix specifying the cell translation vectors associated with the real 
 │ │ │   > space Hamiltonian & overlap matrices. Only present when Hamiltonian & overlap
 │ │ │   > matrices are given in their M×M×N real from. Read by `load_cell_translations`.
+│ │ │   > Should be integers specifying the cell indices, rather than cartesian vectors.
+│ │ │   > The origin cell, [0, 0, 0], must always be first!
 │ │ │ 
 │ │ └─k-points:
 │ │     > A 4×N matrix where N is the number of k-points. The first three rows specify

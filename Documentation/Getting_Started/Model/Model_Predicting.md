@@ -1,12 +1,12 @@
 
 Within the `ACEhamiltonians` framework, predictions are made via the `predict` methods.
-To construct the real space matrix for a given system one may call the `predict` method and provide it with i) a `model` with which to make predictions, ii) an `Atoms` entity representing to system for which predictions are to be made, and iii) the cell translation vectors.
+To construct the real space matrix for a given system one may call the `predict` method and provide it with i) a `model` with which to make predictions, ii) an `JuLIP.Atoms` entity representing to system for which predictions are to be made, and iii) the cell translation vectors.
 The real-space matrix may then be used to construct the complex matrix at a specific k-point via the `real_to_complex` method.
 ```julia
 # K-point for which the complex matrix is to be constructed for
 k_point = [ 0,  0,  0]
 
-# Load the atoms object of the system to make predictions for
+# Load the JuLIP.Atoms object of the system to make predictions for
 atoms = h5open(database_path) do database
 	# The argument recentre` is only required when requiring comparability
 	# with the FHI-aims real-space matrix format.
