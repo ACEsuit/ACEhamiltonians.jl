@@ -49,7 +49,7 @@ model = Model(basis_definition, on_site_parameters, off_site_parameters, model_t
 @info "Fitting Model"
 
 # Path to the database within which the fitting data is stored
-database_path = "/home/ajmhpc/Documents/Work/Projects/ACEtb/Data/Si/Construction/batch_0.h5"
+database_path = "example_data.h5"
 # Names of the systems to which the model should be fitted
 target_systems = ["0224"]
 

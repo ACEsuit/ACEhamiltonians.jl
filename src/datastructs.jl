@@ -15,7 +15,7 @@ import ACEhamiltonians.Parameters: ison
 # `AbstractFittingDataSet` based structures contain all data necessary to perform a fit. 
 abstract type AbstractFittingDataSet end
 
-export DataSet, filter_sparse, filter_bond_distance, get_dataset, AbstractFittingDataSet, random_split, random_sample
+export DataSet, filter_sparse, filter_bond_distance, get_dataset, AbstractFittingDataSet, random_split, random_sample, random_distance_sample
 
 """
     DataSet(values, blk_idxs, states)
@@ -365,7 +365,7 @@ Construct and return a `DataSet` entity containing the minimal data required to 
 - `filter_bonds`: if set to `true` then only interactions within the permitted cutoff
   distance will be returned. This is only valid off-site interactions and is disabled
   by default. The cut-off distance is extracted from the bond envelope contained within
-  the `basis` object.
+  the `basis` object. This defaults to `true` for off-site interactions.
 - `focus`: the `focus` argument allows the `get_dataset` call to return only a sub-set
   of possible data-points. If a vector of atomic indices is provided then only on/off-
   site sub-blocks for/between those atoms will be returned; i.e. [1, 2] would return
@@ -381,7 +381,7 @@ Construct and return a `DataSet` entity containing the minimal data required to 
 function get_dataset(
     matrix::AbstractArray, atoms::Atoms, basis::AHBasis, basis_def,
     images::Union{Matrix, Nothing}=nothing;
-    tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=false,
+    tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=true,
     focus::Union{Vector{<:Integer}, Matrix{<:Integer}, Nothing}=nothing)
 
     if ndims(matrix) == 3 && isnothing(images)

@@ -745,7 +745,7 @@ function ACEbase.read_dict(::Val{:ParaSet}, dict::Dict)
     if haskey(dict, "b_cut")
         return OffSiteParaSet((
             ACEbase.read_dict(dict[i]) for i in
-            ["ν", "deg", "b_cut", "e_cut_out", "r0"])...)
+            ["ν", "deg", "b_cut", "e_cut_out"])...)
     else
         return OnSiteParaSet((
             ACEbase.read_dict(dict[i]) for i in
