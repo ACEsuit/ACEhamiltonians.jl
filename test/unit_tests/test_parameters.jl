@@ -260,25 +260,24 @@ end
 
     @testset "OffSiteParaSet" begin
         @testset "Instantiation" begin
-            ps = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0), G(0.5))
+            ps = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0))
             @test @isdefined ps
         end  
 
         # Make sure that only valid types are accepted
         @testset "Type Guarding" begin
-            @test_throws TypeError OffSiteParaSet(G(1.), G(1), G(1.0), G(1.0), G(0.1))
-            @test_throws TypeError OffSiteParaSet(G(1), G(1.), G(1.0), G(1.0), G(0.1))
-            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1), G(1.0), G(0.1))
-            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1.0), G(1), G(0.1))
-            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1.0), G(1.0), G(1))
+            @test_throws TypeError OffSiteParaSet(G(1.), G(1), G(1.0), G(1.0))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1.), G(1.0), G(1.0))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1), G(1.0))
+            @test_throws TypeError OffSiteParaSet(G(1), G(1), G(1.0), G(1))
         end
 
 
-        ps = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0), G(0.5))
+        ps = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0))
 
         @testset "Equality" begin
-            ps_a = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0), G(0.5))
-            ps_b = OffSiteParaSet(G(2), G(4), G(12.1), G(12.0), G(0.5))
+            ps_a = OffSiteParaSet(G(2), G(4), G(12.0), G(12.0))
+            ps_b = OffSiteParaSet(G(2), G(4), G(12.1), G(12.0))
 
             @test ps == ps_a
             @test ps ≠ ps_b

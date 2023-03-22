@@ -5,7 +5,7 @@ using JuLIP, JSON, HDF5, Reexport
 using ACE.SphericalHarmonics: SphericalCoords
 import ACE.SphericalHarmonics: cart2spher
 
-export BasisDef, DUAL_BASIS_MODEL, BOND_ORIGIN_AT_MIDPOINT
+export BasisDef, DUAL_BASIS_MODEL, BOND_ORIGIN_AT_MIDPOINT, SYMMETRY_FIX_ENABLED
 
 # Enabling this will activate the dual basis mode
 const DUAL_BASIS_MODEL = true

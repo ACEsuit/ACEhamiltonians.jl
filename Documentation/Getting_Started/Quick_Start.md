@@ -13,7 +13,7 @@ The guide outlines the construction, fitting, and predicting processes for both 
 Links to more detailed documents are also provided as necessary.
 
 Installation and setup instructions can be found at the end of this document.
-The `example_data.h5` dataset used throughout the examples and documentation has been supplied, and can be found within the `Files` subdirectory. 
+The `example_data.h5` dataset used throughout the examples and documentation has been supplied, and can be downloaded [here](https://livewarwickac-my.sharepoint.com/:u:/g/personal/u1871544_live_warwick_ac_uk/EXcAW_et2PVBr3uWzIoV3E8BiP3XEkPD0untU7Y5dmvVUg?e=vr6c9v). 
 
 ## Models
 
