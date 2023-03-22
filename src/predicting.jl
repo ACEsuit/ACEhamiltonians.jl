@@ -219,6 +219,9 @@ function _predict(model, atoms, cell_indices)
     # Todo:-
     #   - use symmetry to prevent having to compute data for cells reflected
     #     cell pairs; i.e. [ 0,  0,  1] & [ 0,  0, -1]
+    #   - Setting the on-sites to an identity should be determined by the model
+    #     rather than just assuming that the user always wants on-site overlap
+    #     blocks to be identity matrices.
 
     basis_def = model.basis_definition
     n_orbs = number_of_orbitals(atoms, basis_def)
