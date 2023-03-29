@@ -1,3 +1,4 @@
+# Basis Predicting
 Predictions can be made for individual bases by providing a `Basis` instance along with a state-vector (a vector of `AbstractState` instance) to the `predict` function.
 ```julia
 

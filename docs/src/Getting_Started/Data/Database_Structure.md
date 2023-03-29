@@ -1,4 +1,4 @@
-
+# Database Structure
 
 The `ACEhamiltonians.IO` module contains a series of functions that are intended to aid in the loading of data from HDF5 structured databases.
 While this module offers read functionally is does not offer any write subroutines as of the time of writing.

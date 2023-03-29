@@ -1,4 +1,4 @@
-
+# Model Predicting
 Within the `ACEhamiltonians` framework, predictions are made via the `predict` methods.
 To construct the real space matrix for a given system one may call the `predict` method and provide it with i) a `model` with which to make predictions, ii) an `JuLIP.Atoms` entity representing to system for which predictions are to be made, and iii) the cell translation vectors.
 The real-space matrix may then be used to construct the complex matrix at a specific k-point via the `real_to_complex` method.
