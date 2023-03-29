@@ -1,3 +1,4 @@
+# Basis Fitting
 Individual `Basis` instances may be fitted by supplying the `Basis` and fitting `data` to the `fit!` function. This single basis `fit!` function takes the two aforementioned positional arguments along with three optional keyword arguments: `solver` which specifies the solver to use during fitting which defaults to `LSQR`, `λ` is the degree of regularisation to be applied which defaults to `1E-7`, and `enable_mean` with permits a mean offset to be applied while this defaults to `false` it is advised to enable it when fitting on-site bases.
 ```julia
 
