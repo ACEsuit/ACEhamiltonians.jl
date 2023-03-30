@@ -11,6 +11,7 @@ makedocs(sitename="ACEhamiltonians.jl Documentation",
 
                  
 deploydocs(
-    repo = "https://github.com/mcsloy/ACEhamiltonians.jl-Dev.git",
-    devbranch = "DocBuild"
+    repo = "github.com/mcsloy/ACEhamiltonians.jl-Dev.git",
+    devbranch = "main"
 )
+
