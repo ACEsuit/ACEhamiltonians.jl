@@ -1,3 +1,4 @@
+# Basis Construction
 Individual on and off site bases may be constructed via calls to the `on_site_ace_basis` and `off_site_ace_basis` functions respectively. For on-site bases, one must specify six arguments:
 
  -  The azimuthal quantum numbers of the associated shells, `ℓ₁` and `ℓ₂`. For example, `ℓ₁, ℓ₂= 0, 1` would correspond to a s-p interaction.
