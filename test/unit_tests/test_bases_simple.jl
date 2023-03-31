@@ -323,7 +323,7 @@ end
     # as simple tests to detect that the bases are able to perform the most basic of
     # prediction tasks under optimal conditions.
 
-    database_path = joinpath(artifact"test_data", "contrived_Si_symmetry_testing_systems.h5")
+    database_path = joinpath(artifact"test_data", "test_data/contrived_Si_symmetry_testing_systems.h5")
 
 
 
