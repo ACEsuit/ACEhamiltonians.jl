@@ -1,6 +1,6 @@
 module ACEhamiltonians
 
-using JuLIP, JSON, HDF5, Reexport
+using JuLIP, JSON, HDF5, Reexport, LinearAlgebra
 
 using ACE.SphericalHarmonics: SphericalCoords
 import ACE.SphericalHarmonics: cart2spher

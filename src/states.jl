@@ -15,11 +15,14 @@ export BondState, AtomState, reflect, get_state
 # ║ States ║
 # ╚════════╝
 """
-    BondState(rr, rr0, bond)
+    BondState(mu, mu_i, mu_j, rr, rr0, bond)
 
 State entities used when representing the environment about a bond.  
 
 # Fields
+- `mu`: AtomicNumber of the current atom
+- `mu_i`: AtomicNumber of the first bonding atom
+- `mu_j`: AtomicNumber of the second bonding atom
 - `rr`: environmental atom's position relative to the midpoint of the bond.
 - `rr0`: vector between the two "bonding" atoms, i.e. the bond vector.
 - `bond`: a boolean, which if true indicates the associated `BondState` entity represents
@@ -38,29 +41,40 @@ is possible that the `BondState` structure will have to be split into two sub-st
 # Todo
  - Documentation should be updated to account for the fact that the bond origin has been
    moved back to the first atoms position.
+ - Call for better names for the first three fields
 """
+const AN_default = AtomicNumber(:X)
+
 struct BondState{T<:SVector{3, <:AbstractFloat}, B<:Bool} <: AbstractState
+    mu::AtomicNumber
+    mu_i::AtomicNumber
+    mu_j::AtomicNumber
     rr::T
     rr0::T
     bond::B
 end
 
-
+BondState{T, Bool}(rr,rr0,bond::Bool) where T<:SVector{3, <:AbstractFloat} = BondState(AN_default,AN_default,AN_default,T(rr),T(rr0),bond)
+BondState(rr,rr0,bond::Bool) = BondState{SVector{3, Float64}, Bool}(rr,rr0,bond)
 """
-    AtomState(rr)
+    AtomState(mu,mu_i,rr)
 
 State entity representing the environment about an atom.
 
 # Fields
+- `mu`: AtomicNumber of the current atom
+- `mu_i`: AtomicNumber of the centre atom
 - `rr`: environmental atom's position relative to the host atom. 
-
-# Developers Notes
-An additional field will be added at a later data to facilitate multi-species support.
 
 """
 struct AtomState{T<:SVector{3, <:AbstractFloat}} <: AbstractState
+    mu::AtomicNumber
+    mu_i::AtomicNumber
     rr::T
 end
+
+AtomState{T}(rr) where T<:SVector{3, <:AbstractFloat} = AtomState(AN_default,AN_default,T(rr))
+AtomState(rr) = AtomState{SVector{3, Float64}}(rr)
 
 # ╭────────┬───────────────────────╮
 # │ States │ General Functionality │
@@ -68,28 +82,33 @@ end
 
 # Display methods to help alleviate endless terminal spam.
 function Base.show(io::IO, state::BondState)
+    mu = state.mu
+    mu_i = state.mu_i
+    mu_j = state.mu_j
     rr = string([round.(state.rr, digits=5)...])
     rr0 = string([round.(state.rr0, digits=5)...])
-    print(io, "BondState(rr:$rr, rr0:$rr0, bond:$(state.bond))")
+    print(io, "BondState(mu:$mu, mu_i:$mu_i, mu_j:$mu_j, rr:$rr, rr0:$rr0, bond:$(state.bond))")
 end
 
 function Base.show(io::IO, state::AtomState)
+    mu = state.mu
+    mu_i = state.mu_i
     rr = string([round.(state.rr, digits=5)...])
-    print(io, "AtomState(rr:$rr)")
+    print(io, "AtomState(mu:$mu, mu_i:$mu_i, rr:$rr)")
 end
 
 # Allow for equality checks (will otherwise default to equivalency)  
-Base.:(==)(x::T, y::T) where T<:BondState = x.rr == y.rr && y.rr0 == y.rr0 && x.bond == y.bond
-Base.:(==)(x::T, y::T) where T<:AtomState = x.rr == y.rr
+Base.:(==)(x::T, y::T) where T<:BondState = x.mu == y.mu && x.mu_i == y.mu_i && x.mu_j == y.mu_j && x.rr == y.rr && y.rr0 == y.rr0 && x.bond == y.bond
+Base.:(==)(x::T, y::T) where T<:AtomState = x.mu == y.mu && x.mu_i == y.mu_i && x.rr == y.rr
 
 # The ≈ operator is commonly of more use for State entities than the equality
-Base.isapprox(x::T, y::T; kwargs...) where T<:BondState = isapprox(x.rr, y.rr; kwargs...) && isapprox(x.rr0, y.rr0; kwargs...) && x.bond == y.bond
-Base.isapprox(x::T, y::T; kwargs...) where T<:AtomState = isapprox(x.rr, y.rr; kwargs...)
+Base.isapprox(x::T, y::T; kwargs...) where T<:BondState = x.mu == y.mu && x.mu_i == y.mu_i && x.mu_j == y.mu_j && isapprox(x.rr, y.rr; kwargs...) && isapprox(x.rr0, y.rr0; kwargs...) && x.bond == y.bond
+Base.isapprox(x::T, y::T; kwargs...) where T<:AtomState = x.mu == y.mu && x.mu_i == y.mu_i && isapprox(x.rr, y.rr; kwargs...)
 Base.isapprox(x::T, y::T; kwargs...) where T<:AbstractVector{<:BondState} = all(x .≈ y)
 Base.isapprox(x::T, y::T; kwargs...) where T<:AbstractVector{<:AtomState} = all(x .≈ y)
 
 # ACE requires the `zero` method to be defined for states.
-Base.zero(::Type{BondState{T, S}}) where {T, S} = BondState{T, S}(zero(T), zero(T), false)
+Base.zero(::Type{BondState{T, S}}) where {T, S} = BondState{T, S}(zero(T), zero(T), true)
 Base.zero(::Type{AtomState{T}}) where T = AtomState{T}(zero(T))
 Base.zero(::B) where B<:BondState = zero(B)
 Base.zero(::B) where B<:AtomState = zero(B)
@@ -127,15 +146,15 @@ of the bond; i.e. `envelope.λ≡0`.
 function reflect(state::T) where T<:BondState
     @static if BOND_ORIGIN_AT_MIDPOINT
         if state.bond
-            return T(-state.rr, -state.rr0, true)
+            return T(state.mu, state.mu_j, state.mu_i, -state.rr, -state.rr0, true)
         else
-            return T(state.rr, -state.rr0, false)
+            return T(state.mu, state.mu_j, state.mu_i, state.rr, -state.rr0, false)
         end
     else
         if state.bond
-            return T(-state.rr, -state.rr0, true)
+            return T(state.mu, state.mu_j, state.mu_i, -state.rr, -state.rr0, true)
         else
-            return T(state.rr - state.rr0, -state.rr0, false)
+            return T(state.mu, state.mu_j, state.mu_i, state.rr - state.rr0, -state.rr0, false)
         end
     end
 end
@@ -168,15 +187,13 @@ function get_state(i::Integer, atoms::Atoms; r::AbstractFloat=16.0)
 
     # Extract environment about each relevant atom from the pair list. These will be tuples
     # of the form: (atomic-index, relative-position)
-    idxs, vecs = NeighbourLists.neigs(pair_list, i) 
-
-    # Neighbour list caching results in atoms outside the cutoff being present in `vecs`.
-    filtered_vecs = filter(k -> norm(k) <= r, vecs)
-
-    # Once multi-species support is added the atomic numbers will need to be retrieved.
-
-    # Construct & return the `AtomState`` vector
-    return AtomState.(filtered_vecs)
+    idxs, vecs, species = JuLIP.Potentials.neigsz(pair_list, atoms, i) 
+    
+    # Construct the `AtomState`` vector
+    st = [ AtomState(species[j], atoms.Z[i], vecs[j]) for j = 1:length(species) ]
+    
+    # Return an AtomState vector without those outside the cutoff sphere.
+    return filter(k -> norm(k.rr) <= r, st)
 end
 
 
@@ -234,7 +251,7 @@ function get_state(
     end
 
     # Neighbours list construction (about atom `i`)
-    idxs, vecs, cells = _neighbours(i, atoms, r)
+    idxs, vecs, cells, species = _neighbours(i, atoms, r)
 
     # Get the bond vector between atoms i & j; where i is in the origin cell & j resides
     # in either i) closest periodic image, or ii) that specified by `image` if provided.
@@ -258,12 +275,13 @@ function get_state(
     # an environmental atom in the for loop later on. This operation is done even if the
     # `idx==0` to maintain type stability.
     @views vecs_no_bond = vecs[1:end .!= idx]
+    @views species_no_bond = species[1:end .!= idx]
     
     # `BondState` entity vector 
     states = Vector{BondState{typeof(rr0), Bool}}(undef, length(vecs_no_bond) + 1)
 
     # Construct the bond vector state; i.e where `bond=true`
-    states[1] = BondState(rr0, rr0, true)
+    states[1] = BondState(atoms.Z[j],atoms.Z[i],atoms.Z[j],rr0, rr0, true)
     
     @static if BOND_ORIGIN_AT_MIDPOINT
         # As the mid-point of the bond is used as the origin an offset is needed to shift
@@ -275,9 +293,9 @@ function get_state(
     for (k, v⃗) in enumerate(vecs_no_bond)
         @static if BOND_ORIGIN_AT_MIDPOINT
             # Offset the positions so that they are relative to the bond's midpoint.
-            states[k+1] = BondState{typeof(rr0), Bool}(v⃗ - offset, rr0, false)
+            states[k+1] = BondState{typeof(rr0), Bool}(species_no_bond[k], atoms.Z[i], atoms.Z[j], v⃗ - offset, rr0, false)
         else
-            states[k+1] = BondState{typeof(rr0), Bool}(v⃗, rr0, false)
+            states[k+1] = BondState{typeof(rr0), Bool}(species_no_bond[k], atoms.Z[i], atoms.Z[j], v⃗, rr0, false)
         end
         
     end
@@ -392,7 +410,7 @@ will contain neighbours at distances greater than `r`.
 """
 function _neighbours(i::Integer, atoms::Atoms, r::AbstractFloat)
     pair_list = JuLIP.neighbourlist(atoms, r; fixcell=false)
-    return NeighbourLists.neigss(pair_list, i)
+    return [ NeighbourLists.neigss(pair_list, i)..., JuLIP.Potentials.neigsz(pair_list,atoms,i)[3] ]
 end
 
 

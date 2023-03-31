@@ -1,17 +1,22 @@
 module Fitting
 using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra, SparseArrays, IterativeSolvers
-using ACEfit: linear_solve, SKLEARN_ARD
+using ACEfit: linear_solve, SKLEARN_ARD, SKLEARN_BRR
 using HDF5: Group
 using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
 using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
 using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
+using ACEatoms:AtomicNumber
+using LowRankApprox: pqrfact
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
 
 
 export fit!
+
+# set abs(a::AtomicNumber) = 0 as it is called in the `scaling` function but should not change the output
+Base.abs(a::AtomicNumber) = 0 # a.z
 
 # Once the bond inversion issue has been resolved the the redundant models will no longer
 # be required. The changes needed to be made in this file to remove the redundant model
@@ -57,7 +62,7 @@ function _preprocessY(Y)
 end
 
 
-function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
+function solve_ls(A, Y, λ, Γ, solver = "LSQR"; niter = 10, inner_tol = 1e-3)
     # Note; this function was copied over from the original ACEhamiltonians/fit.jl file.
 
     A = _preprocessA(A)
@@ -66,9 +71,9 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
     num = size(A)[2]
     A = [A; λ*Γ]
     Y = [Y; zeros(num)]
-    if Solver == "QR"
+    if solver == "QR"
        return real(qr(A) \ Y)
-    elseif Solver == "LSQR"
+    elseif solver == "LSQR"
        # The use of distributed arrays is still causing a memory leak. As such the following
        # code has been disabled until further notice.
        # Ad, Yd = distribute(A), distribute(Y)
@@ -76,9 +81,15 @@ function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
        # close(Ad), close(Yd)
        res = real(IterativeSolvers.lsqr(A, Y; atol = 1e-6, btol = 1e-6))
        return res
-    elseif Solver == "ARD"
-       return linear_solve(SKLEARN_ARD(), A, Y)
-    elseif Solver == "NaiveSolver"
+    elseif solver == "ARD"
+       return linear_solve(SKLEARN_ARD(;n_iter = niter, tol = inner_tol), A, Y)["C"]
+    elseif solver == "BRR"
+       return linear_solve(SKLEARN_BRR(;n_iter = niter, tol = inner_tol), A, Y)["C"]
+    elseif solver == "RRQR"
+       AP = A / I
+       θP = pqrfact(A, rtol = inner_tol) \ Y
+       return I \ θP
+    elseif solver == "NaiveSolver"
        return real((A'*A) \ (A'*Y))
     end
  

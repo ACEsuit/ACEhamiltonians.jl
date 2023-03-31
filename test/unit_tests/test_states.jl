@@ -44,7 +44,7 @@ end
             b = BondState(t([1, 1, 1.00000001]), ones(t), false)
             c = BondState(ones(t), ones(t), true)
         
-            @test zero(typeof(a)) == zero(a) == BondState{t, Bool}(zero(t), zero(t), false)
+            @test zero(typeof(a)) == zero(a) == BondState{t, Bool}(zero(t), zero(t), true)
             
             @test a == BondState(ones(t), ones(t), false)
             @test a != b
