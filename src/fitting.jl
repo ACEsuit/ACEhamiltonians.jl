@@ -15,7 +15,9 @@ using ACEhamiltonians: DUAL_BASIS_MODEL
 
 export fit!
 
+# set abs(a::AtomicNumber) = 0 as it is called in the `scaling` function but should not change the output
 Base.abs(a::AtomicNumber) = 0 # a.z
+
 # Once the bond inversion issue has been resolved the the redundant models will no longer
 # be required. The changes needed to be made in this file to remove the redundant model
 # are as follows:

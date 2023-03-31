@@ -108,7 +108,7 @@ Base.isapprox(x::T, y::T; kwargs...) where T<:AbstractVector{<:BondState} = all(
 Base.isapprox(x::T, y::T; kwargs...) where T<:AbstractVector{<:AtomState} = all(x .≈ y)
 
 # ACE requires the `zero` method to be defined for states.
-Base.zero(::Type{BondState{T, S}}) where {T, S} = BondState{T, S}(zero(T), zero(T), true) # It would be more intuitive to set this to be true as there should be at least one bond in a bond state
+Base.zero(::Type{BondState{T, S}}) where {T, S} = BondState{T, S}(zero(T), zero(T), true)
 Base.zero(::Type{AtomState{T}}) where T = AtomState{T}(zero(T))
 Base.zero(::B) where B<:BondState = zero(B)
 Base.zero(::B) where B<:AtomState = zero(B)

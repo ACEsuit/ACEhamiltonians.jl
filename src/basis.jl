@@ -1,6 +1,6 @@
 module Bases
 
-using ACEhamiltonians, ACE, ACEbase, SparseArrays, LinearAlgebra, ACEatoms
+using ACEhamiltonians, ACE, ACEbase, SparseArrays, LinearAlgebra, ACEatoms, JuLIP
 
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
 using ACE: SymmetricBasis, SphericalMatrix, Utils.RnYlm_1pbasis, SimpleSparseBasis,
@@ -246,7 +246,7 @@ end
 # Codes hacked to proceed to enable multispecies basis construction
 ACE.get_spec(basis::Species1PBasis, i::Integer) = (μ = basis.zlist.list[i],)
 ACE.get_spec(basis::Species1PBasis) = ACE.get_spec.(Ref(basis), 1:length(basis))
-Base.length(a::Nothing) = 0
+# Base.length(a::Nothing) = 0
 
 @doc raw"""
 
@@ -268,13 +268,13 @@ then bases must be instantiated manually.
 - `e_cutₒᵤₜ::AbstractFloat`: only atoms within the specified cutoff radius will contribute
    to the local environment.
 - `r0::AbstractFloat`: scaling parameter (typically set to the nearest neighbour distances).
-- `species::Union{nothing, Vector{AtomicNumber}}`: A set of species of a system
+- `species::Union{Nothing, Vector{AtomicNumber}}`: A set of species of a system
 
 # Returns
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
-function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, r0::F=2.5; species = nothing
+function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, r0::F=2.5; species::Union{Nothing, Vector{AtomicNumber}}=nothing
     ) where {I<:Integer, F<:AbstractFloat}
     # Build i) a matrix indicating the desired sub-block shape, ii) the one
     # particle Rₙ·Yₗᵐ basis describing the environment, & iii) the basis selector.
@@ -295,7 +295,7 @@ end
 
 
 function _off_site_ace_basis_no_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5, species = nothing) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, species::Union{Nothing, Vector{AtomicNumber}}=nothing) where {I<:Integer, F<:AbstractFloat}
 
 
     # Bond envelope which controls which atoms are seen by the bond.
@@ -332,10 +332,10 @@ end
 
 
 function _off_site_ace_basis_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5, species = nothing) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, species::Union{Nothing, Vector{AtomicNumber}}=nothing) where {I<:Integer, F<:AbstractFloat}
     
     # TODO: For now the symmetrised basis only works for single species case but it can be easily extended
-    @assert length(species) <= 1
+    @assert species == nothing || length(species) <= 1
  
     basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
 
@@ -388,18 +388,18 @@ must be manually instantiated if more fine-grained control is desired.
    is used to determine which atoms impact to the bond's environment.
 - `λₙ::AbstractFloat`: 
 - `λₗ::AbstractFloat`:
-- `species::Union{nothing, Vector{AtomicNumber}}`: A set of species of a system
+- `species::Union{Nothing, Vector{AtomicNumber}}`: A set of species of a system
 
 # Returns
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
 function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5, symfix=true, species = nothing) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, symfix=true, species::Union{Nothing, Vector{AtomicNumber}}=nothing) where {I<:Integer, F<:AbstractFloat}
     # WARNING symfix might cause issues when applied to interactions between different species.
     # It is still not clear how appropriate this non homo-shell interactions.
     @static if SYMMETRY_FIX_ENABLED
-        if symfix && length(species) <= 1
+        if symfix && ( isnothing(species) || length(species) <= 1)
             basis = _off_site_ace_basis_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
         else
             basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
