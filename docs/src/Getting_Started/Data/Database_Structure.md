@@ -110,3 +110,5 @@ H, S, atoms, images = h5open(database_path) do database
     load_atoms(target; recentre=true), load_cell_translations(target))
 end
 ```
+
+A python script (`aims_database_builder.py`) is provided in the tools directory which demonstrates how such a database may be constructed from the output of an FHI-aims calculation.

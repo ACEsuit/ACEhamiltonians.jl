@@ -81,31 +81,14 @@ include("models.jl")
 include("datastructs.jl")
 @reexport using ACEhamiltonians.DataSets
 
-include("struc_setting.jl")
-@reexport using ACEhamiltonians.Structure
-
-include("dataproc.jl")
-@reexport using ACEhamiltonians.DataProcess
-
-include("fit.jl")
-@reexport using ACEhamiltonians.Fitting
-
 include("fitting.jl")
-@reexport using ACEhamiltonians.Fitting2
+@reexport using ACEhamiltonians.Fitting
 
 include("predicting.jl")
 @reexport using ACEhamiltonians.Predicting
 
-include("predict.jl")
-@reexport using ACEhamiltonians.Predict
-
-include("dictionary.jl")
-@reexport using ACEhamiltonians.Dictionary
-
 include("properties.jl")
 @reexport using ACEhamiltonians.Properties
-
-include("tools.jl")
 
 include("api/dftbp_api.jl")
 

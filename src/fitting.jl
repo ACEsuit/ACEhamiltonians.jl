@@ -1,9 +1,9 @@
-module Fitting2
-using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra, SparseArrays
+module Fitting
+using HDF5, ACE, ACEbase, ACEhamiltonians, StaticArrays, Statistics, LinearAlgebra, SparseArrays, IterativeSolvers
+using ACEfit: linear_solve, SKLEARN_ARD
 using HDF5: Group
 using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
-using ACEhamiltonians.Fitting: evaluateval_real, solve_ls
 using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
 using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
@@ -26,6 +26,64 @@ export fit!
 #   - ACE should be modified so that `valtype` inherits from Base. This way there should be
 #     no errors caused when importing it.
 #   - Remove hard coded matrix type from the predict function.
+
+# The _assemble_ls and _evaluate_real methods should be rewritten to use PseudoBlockArrays
+# this will prevent redundant allocations from being made and will mean that _preprocessA
+# and _preprocessY can also be removed. This should help speed up the code and should
+# significantly improve memory usage.
+function _preprocessA(A)
+    # Note; this function was copied over from the original ACEhamiltonians/fit.jl file. 
+
+    # S1: number of sites; S2: number of basis, SS1: 2L1+1, SS2: 2L2+1
+    S1,S2 = size(A)
+    SS1,SS2 = size(A[1])
+    A_temp = zeros(ComplexF64, S1*SS1*SS2, S2)
+    for i = 1:S1, j = 1:S2
+        A_temp[SS1*SS2*(i-1)+1:SS1*SS2*i,j] = reshape(A[i,j],SS1*SS2,1)
+    end
+    return real(A_temp)
+end
+ 
+function _preprocessY(Y)
+    # Note; this function was copied over from the original ACEhamiltonians/fit.jl file.
+
+    Len = length(Y)
+    SS1,SS2 = size(Y[1])
+    Y_temp = zeros(ComplexF64,Len*SS1*SS2)
+    for i = 1:Len
+        Y_temp[SS1*SS2*(i-1)+1:SS1*SS2*i] = reshape(Y[i],SS1*SS2,1)
+    end
+    return real(Y_temp)
+end
+
+
+function solve_ls(A, Y, λ, Γ, Solver = "LSQR")
+    # Note; this function was copied over from the original ACEhamiltonians/fit.jl file.
+
+    A = _preprocessA(A)
+    Y = _preprocessY(Y)
+    
+    num = size(A)[2]
+    A = [A; λ*Γ]
+    Y = [Y; zeros(num)]
+    if Solver == "QR"
+       return real(qr(A) \ Y)
+    elseif Solver == "LSQR"
+       # The use of distributed arrays is still causing a memory leak. As such the following
+       # code has been disabled until further notice.
+       # Ad, Yd = distribute(A), distribute(Y)
+       # res = real(IterativeSolvers.lsqr(Ad, Yd; atol = 1e-6, btol = 1e-6))
+       # close(Ad), close(Yd)
+       res = real(IterativeSolvers.lsqr(A, Y; atol = 1e-6, btol = 1e-6))
+       return res
+    elseif Solver == "ARD"
+       return linear_solve(SKLEARN_ARD(), A, Y)
+    elseif Solver == "NaiveSolver"
+       return real((A'*A) \ (A'*Y))
+    end
+ 
+ end
+
 
 function _ctran(l::Int64,m::Int64,μ::Int64)
    if abs(m) ≠ abs(μ)
