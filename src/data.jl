@@ -635,7 +635,7 @@ between the `s_i`'th shell on species `z_1` and the `s_j`'th shell on species `z
 If `matrix` is supplied in its 3D real-space form then it is imperative to ensure that
 the origin cell is first. 
 """
-locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def; focus=nothing) = _locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms, basis_def; focus=focus)
+locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def; focus=nothing, no_reduce=false) = _locate_and_get_sub_blocks(matrix, z_1, z_2, s_i, s_j, atoms, basis_def; focus=focus, no_reduce=no_reduce)
 
 """
     locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms, basis_def)
@@ -664,7 +664,7 @@ between the `s_i`'th & `s_j`'th shells on species `z`.
 If `matrix` is supplied in its 3D real-space form then it is imperative to ensure that
 the origin cell is first. 
 """
-locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms::Atoms, basis_def; focus=nothing) = _locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms, basis_def; focus=focus)
+locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms::Atoms, basis_def; focus=nothing, kwargs...) = _locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms, basis_def; focus=focus)
 
 # Multiple dispatch is used to avoid the type instability in `locate_and_get_sub_blocks`
 # associated with the creation of the `block_idxs` variable. It is also used to help
@@ -672,7 +672,8 @@ locate_and_get_sub_blocks(matrix, z, s_i, s_j, atoms::Atoms, basis_def; focus=no
 # `_locate_and_get_sub_blocks` functions differ only in how they construct `block_idxs`.
 
 # Off site _locate_and_get_sub_blocks functions
-function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 2}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def; focus=nothing) where T
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 2}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def;
+    focus=nothing, no_reduce=false) where T
     block_idxs = atomic_block_idxs(z_1, z_2, atoms.Z)
 
     if !isnothing(focus)
@@ -683,14 +684,15 @@ function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 2}, z_1, z_2, s_i, 
 
     # Duplicate blocks present when gathering off-site homo-atomic homo-orbital interactions
     # must be purged. 
-    if (z_1 == z_2) && (s_i == s_j)
+    if (z_1 == z_2) && (s_i == s_j) && !no_reduce
         block_idxs = filter_upper_idxs(block_idxs) 
     end
 
     return get_sub_blocks(matrix, block_idxs, s_i, s_j, atoms, basis_def), block_idxs
 end
 
-function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def; focus=nothing) where T
+function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z_1, z_2, s_i, s_j, atoms::Atoms, basis_def;
+    focus=nothing, no_reduce=false) where T
     block_idxs = atomic_block_idxs(z_1, z_2, atoms.Z)
 
     if !isnothing(focus)
@@ -700,7 +702,7 @@ function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z_1, z_2, s_i, 
     block_idxs = repeat_atomic_block_idxs(block_idxs, size(matrix, 3))
     block_idxs = filter_off_site_idxs(block_idxs)
 
-    if (z_1 == z_2) && (s_i == s_j)
+    if (z_1 == z_2) && (s_i == s_j) && !no_reduce
         block_idxs = filter_upper_idxs(block_idxs) 
     end
 

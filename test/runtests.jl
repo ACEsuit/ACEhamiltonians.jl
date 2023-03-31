@@ -7,10 +7,6 @@ using Test
         include("unit_tests/test_data.jl")
         include("unit_tests/test_states.jl")
         include("unit_tests/test_datastructs.jl")
+        include("unit_tests/test_bases_simple.jl")
     end
-
-    @testset "Regression Tests" begin
-        # Test is skipped as this is all deprecated and must be fully rewritten
-        @test_skip include("matrix_tolerance_tests.jl")
-    end 
 end
