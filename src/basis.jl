@@ -1,6 +1,6 @@
 module Bases
 
-using ACEhamiltonians, ACE, ACEbase, SparseArrays, LinearAlgebra
+using ACEhamiltonians, ACE, ACEbase, SparseArrays, LinearAlgebra, ACEatoms
 
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
 using ACE: SymmetricBasis, SphericalMatrix, Utils.RnYlm_1pbasis, SimpleSparseBasis,
@@ -243,6 +243,11 @@ end
 # ║ ACE Basis Constructors ║
 # ╚════════════════════════╝
 
+# Codes hacked to proceed to enable multispecies basis construction
+ACE.get_spec(basis::Species1PBasis, i::Integer) = (μ = basis.zlist.list[i],)
+ACE.get_spec(basis::Species1PBasis) = ACE.get_spec.(Ref(basis), 1:length(basis))
+Base.length(a::Nothing) = 0
+
 @doc raw"""
 
     on_site_ace_basis(ℓ₁, ℓ₂, ν, deg, e_cutₒᵤₜ[, r0])
@@ -258,31 +263,39 @@ then bases must be instantiated manually.
 
 # Arguments
 - `(ℓ₁,ℓ₂)::Integer`: azimuthal numbers of the basis function.
-- `ν::Integer`: maximum correlation order.
+- `ν::Integer`: maximum correlation order = body order - 1.
 - `deg::Integer`: maximum polynomial degree.
 - `e_cutₒᵤₜ::AbstractFloat`: only atoms within the specified cutoff radius will contribute
    to the local environment.
 - `r0::AbstractFloat`: scaling parameter (typically set to the nearest neighbour distances).
+- `species::Union{nothing, Vector{AtomicNumber}}`: A set of species of a system
 
 # Returns
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
-function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, r0::F=2.5
+function on_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, e_cutₒᵤₜ::F, r0::F=2.5; species = nothing
     ) where {I<:Integer, F<:AbstractFloat}
     # Build i) a matrix indicating the desired sub-block shape, ii) the one
     # particle Rₙ·Yₗᵐ basis describing the environment, & iii) the basis selector.
     # Then instantiate the SymmetricBasis required by the Basis structure.
-    return SymmetricBasis(
-        SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
-        RnYlm_1pbasis(maxdeg=deg, r0=r0, rcut=e_cutₒᵤₜ),
-        SimpleSparseBasis(ν, deg))
+    if !isnothing(species)
+      return SymmetricBasis(
+          SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
+          Species1PBasis(species) * RnYlm_1pbasis(maxdeg=deg, r0=r0, rcut=e_cutₒᵤₜ),
+          SimpleSparseBasis(ν, deg))
+    else
+        return SymmetricBasis(
+            SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
+            RnYlm_1pbasis(maxdeg=deg, r0=r0, rcut=e_cutₒᵤₜ),
+            SimpleSparseBasis(ν, deg))
+    end
 end
 
 
 
 function _off_site_ace_basis_no_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, species = nothing) where {I<:Integer, F<:AbstractFloat}
 
 
     # Bond envelope which controls which atoms are seen by the bond.
@@ -301,14 +314,17 @@ function _off_site_ace_basis_no_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::
     RnYlm = RnYlm_1pbasis(
         maxdeg=deg, rcut=cutoff_env(env),
         trans=IdTransform(), rin=0.0)
-        
+    
+    B1p = RnYlm * env * discriminator
+    if !isnothing(species)
+        B1p = Species1PBasis(species) * B1p
+    end
     
     # Finally, construct and return the SymmetricBasis entity
     basis = SymmetricBasis(
         SphericalMatrix(ℓ₁, ℓ₂; T=ComplexF64),
-        RnYlm * env * discriminator,
-        SimpleSparseBasis(ν + 1, deg),
-        filterfun=states -> _filter_offsite_be(states, deg, λₙ, λₗ))
+        B1p, SimpleSparseBasis(ν + 1, deg),
+        filterfun = indices -> _filter_offsite_be(indices, deg, λₙ, λₗ))
     
 
     return basis
@@ -316,9 +332,12 @@ end
 
 
 function _off_site_ace_basis_sym(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, species = nothing) where {I<:Integer, F<:AbstractFloat}
+    
+    # TODO: For now the symmetrised basis only works for single species case but it can be easily extended
+    @assert length(species) <= 1
  
-    basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ)
+    basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
 
     if ℓ₁ == ℓ₂
         Uᵢ = let A = get_spec(basis.pibasis)
@@ -369,23 +388,24 @@ must be manually instantiated if more fine-grained control is desired.
    is used to determine which atoms impact to the bond's environment.
 - `λₙ::AbstractFloat`: 
 - `λₗ::AbstractFloat`:
+- `species::Union{nothing, Vector{AtomicNumber}}`: A set of species of a system
 
 # Returns
 - `basis::SymmetricBasis`: ACE basis entity for modelling the specified interaction. 
 
 """
 function off_site_ace_basis(ℓ₁::I, ℓ₂::I, ν::I, deg::I, b_cut::F, e_cutₒᵤₜ::F=5.;
-    λₙ::F=.5, λₗ::F=.5, symfix=true) where {I<:Integer, F<:AbstractFloat}
+    λₙ::F=.5, λₗ::F=.5, symfix=true, species = nothing) where {I<:Integer, F<:AbstractFloat}
     # WARNING symfix might cause issues when applied to interactions between different species.
     # It is still not clear how appropriate this non homo-shell interactions.
     @static if SYMMETRY_FIX_ENABLED
-        if symfix
-            basis = _off_site_ace_basis_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ)
+        if symfix && length(species) <= 1
+            basis = _off_site_ace_basis_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
         else
-            basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ)
+            basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
         end
     else
-        basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ)
+        basis = _off_site_ace_basis_no_sym(ℓ₁, ℓ₂, ν, deg, b_cut, e_cutₒᵤₜ; λₙ=λₙ, λₗ=λₗ, species = species)
     end
 
     return basis
@@ -405,7 +425,7 @@ when instantiating.
 
 
 # Arguments
-- `states:?????`: Unknown, this is supplied by ase when used?
+- `indices::Tuple`: set of index that defines 1pbasis, e.g., (n,l,m,:be).
 - `max_degree::Integer`: maximum polynomial degree.
 - `λ_n::AbstractFloat`: 
 - `λ_l::AbstractFloat`: 
@@ -427,15 +447,15 @@ julia> off_site_sym_basis = SymmetricBasis(
     - Refactoring may improve performance.
 
 """
-function _filter_offsite_be(states, max_degree, λ_n=.5, λ_l=.5)
-    if length(states) == 0; return false; end 
+function _filter_offsite_be(indices, max_degree, λ_n=.5, λ_l=.5)
+    if length(indices) == 0; return false; end 
     deg_n, deg_l = ceil(Int, max_degree * λ_n), ceil(Int, max_degree * λ_l)
-    for state in states
-        if !state.bond && (state.n>deg_n || state.l>deg_l)
+    for idx in indices
+        if !idx.bond && (idx.n>deg_n || idx.l>deg_l)
             return false
         end
     end
-    return sum(state.bond for state in states) == 1
+    return sum(idx.bond for idx in indices) == 1
 end
 
 
