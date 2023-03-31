@@ -5,7 +5,7 @@ using JuLIP: Atoms, neighbourlist
 using ACE: ACEConfig, AbstractState, evaluate
 
 using ACEhamiltonians.States: _get_states
-using ACEhamiltonians.Fitting2: _evaluate_real
+using ACEhamiltonians.Fitting: _evaluate_real
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
 
