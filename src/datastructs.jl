@@ -373,6 +373,10 @@ Construct and return a `DataSet` entity containing the minimal data required to 
   is provided, like so [1 2; 3 4] then only the associated off-site sub-blocks will be
   returned, i.e. 1-2-off and 3-4-off. Note that the matrix form is only valid when
   retrieving off-site sub-blocks.
+- `no_reduce`: by default symmetrically redundant sub-blocks will not be gathered; this
+  equivalent blocks from be extracted from the upper and lower triangles of the Hamiltonian
+  and overlap matrices. This will default to `false`, however it is sometimes useful to
+  disable this when debugging.
 
 # Todo:
  - Warn that only the upper triangle is returned and discuss how this effects "focus".
@@ -382,14 +386,15 @@ function get_dataset(
     matrix::AbstractArray, atoms::Atoms, basis::AHBasis, basis_def,
     images::Union{Matrix, Nothing}=nothing;
     tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=true,
-    focus::Union{Vector{<:Integer}, Matrix{<:Integer}, Nothing}=nothing)
+    focus::Union{Vector{<:Integer}, Matrix{<:Integer}, Nothing}=nothing,
+    no_reduce=false)
 
     if ndims(matrix) == 3 && isnothing(images)
         throw("`images` must be provided when provided with a real space `matrix`.")
     end
 
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
-    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def; focus=focus)
+    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def; focus=focus, no_reduce=no_reduce)
 
     if !isnothing(focus)
         mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])

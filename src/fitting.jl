@@ -252,30 +252,30 @@ Fit the specified model using the provided data.
 function fit!(
     model::Model, fitting_data; refit::Bool=false)
 
-    @info "Fitting off site bases:"
+    @debug "Fitting off site bases:"
     for (id, basis) in model.off_site_bases
         if !haskey(fitting_data, id)
-            @info "Skipping $(id): no fitting data provided"
+            @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
-            @info "Skipping $(id): basis already fitted"
+            @debug "Skipping $(id): basis already fitted"
         elseif length(fitting_data) ≡ 0
-            @info "Skipping $(id): fitting dataset is empty"
+            @debug "Skipping $(id): fitting dataset is empty"
         else
-            @info "Fitting $(id): using $(length(fitting_data[id])) fitting points"
+            @debug "Fitting $(id): using $(length(fitting_data[id])) fitting points"
             fit!(basis, fitting_data[id])
         end    
     end
 
-    @info "Fitting on site bases:"
+    @debug "Fitting on site bases:"
     for (id, basis) in model.on_site_bases
         if !haskey(fitting_data, id)
-            @info "Skipping $(id): no fitting data provided"
+            @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
-            @info "Skipping $(id): basis already fitted"
+            @debug "Skipping $(id): basis already fitted"
         elseif length(fitting_data) ≡ 0
-            @info "Skipping $(id): fitting dataset is empty"
+            @debug "Skipping $(id): fitting dataset is empty"
         else
-            @info "Fitting $(id): using $(length(fitting_data[id])) fitting points"
+            @debug "Fitting $(id): using $(length(fitting_data[id])) fitting points"
             fit!(basis, fitting_data[id]; enable_mean=ison(basis))
         end    
     end

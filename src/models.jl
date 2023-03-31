@@ -66,7 +66,7 @@ struct Model
         # as they represent the same thing.
         basis_definition_sorted = sort(collect(basis_definition), by=first)
         
-        @info "Building model"
+        @debug "Building model"
         # Loop over all unique species pairs then over all combinations of their shells. 
         for (zₙ, (zᵢ, shellsᵢ)) in enumerate(basis_definition_sorted)
             for (zⱼ, shellsⱼ) in basis_definition_sorted[zₙ:end]
@@ -78,16 +78,15 @@ struct Model
                     
                     if homo_atomic
                         id = (zᵢ, n₁, n₂)
-                        @info "Building on-site model : $id"
+                        @debug "Building on-site model : $id"
                         ace_basis = ace_basis_on( # On-site bases
                             ℓ₁, ℓ₂, on_site_parameters[id]...)
 
                         on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
                     end
 
-                    @info "Building off-site model: $id"
-
                     id = (zᵢ, zⱼ, n₁, n₂)
+                    @debug "Building off-site model: $id"
 
                     ace_basis = ace_basis_off( # Off-site bases
                         ℓ₁, ℓ₂, off_site_parameters[id]...)
