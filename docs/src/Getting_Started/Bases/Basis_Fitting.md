@@ -19,7 +19,7 @@ end
 species = unique(atoms.Z)
 # Alternatively, one can use 
 # using JuLIP
-# species = [ keys(basis_definition)... ]
+# species = AtomicNumber.([ keys(basis_definition)... ])
 
 # Construct a pair of on and off-site bases
 on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0; species = (try species catch nothing end)), (14, 3, 4))
