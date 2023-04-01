@@ -8,16 +8,19 @@ database_path = "example_data.h5"
 # Name/path of/to the system to which fitting data should be drawn 
 target_system = "0224"
 
-# Construct a pair of on and off-site bases
-on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0), (14, 3, 4))
-off_site_basis = Basis(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0), (14, 14, 6, 6))
-
-
 # Load the real-space Hamiltonian matrix, atoms object, cell translation vectors, and basis set definition
 H, atoms, images, basis_definition = h5open(database_path) do database
     target = database[target_system]
     load_hamiltonian(target), load_atoms(target; recentre=true), load_cell_translations(target), load_basis_set_definition(target)
 end
+
+# Get the species of the system - it can be done in several ways and here just comes one
+# This step can be skipped if all atoms in this system are of the same type
+species = unique(atoms.Z)
+
+# Construct a pair of on and off-site bases
+on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0; species = (try species catch nothing end)), (14, 3, 4))
+off_site_basis = Basis(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0; species = (try species catch nothing end)), (14, 14, 6, 6))
 
 # Gather all relevant data for fitting 
 on_site_data = get_dataset(H, atoms, on_site_basis, basis_definition, images)
