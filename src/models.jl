@@ -88,7 +88,6 @@ struct Model
                         @debug "Building on-site model : $id"
                         ace_basis = ace_basis_on( # On-site bases
                             ℓ₁, ℓ₂, on_site_parameters[id]...; species = species)
-                        #TODO: add species to the above line
 
                         on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
                     end
@@ -98,7 +97,6 @@ struct Model
 
                     ace_basis = ace_basis_off( # Off-site bases
                         ℓ₁, ℓ₂, off_site_parameters[id]...; species = species)
-                    #TODO: add species to the above line
                     
                     @static if DUAL_BASIS_MODEL
                         if homo_atomic && n₁ == n₂
