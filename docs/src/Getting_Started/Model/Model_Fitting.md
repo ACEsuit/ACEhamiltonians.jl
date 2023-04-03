@@ -16,7 +16,10 @@ h5open(database_path) do database
     systems = [database[target_system] for target_system in target_systems]
 
     # Perform the fitting operation
-    fit!(model, systems; recentre=true)
+    # Here, solver is an optional field with default "LSQR" which 
+    # specifies the solver used to solve the least squares in fitting
+    # Other possible choice are "QR", "ARD", "BRR", "RRQR" etc.
+    fit!(model, systems; recentre=true, solver = "LSQR")
 end
 
 # Don't forget to save the model after fitting (if needed)

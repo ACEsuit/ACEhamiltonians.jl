@@ -30,8 +30,11 @@ on_site_data = get_dataset(H, atoms, on_site_basis, basis_definition, images)
 off_site_data = get_dataset(H, atoms, off_site_basis, basis_definition, images)
 
 # Perform the fitting operation
-fit!(on_site_basis, on_site_data)
-fit!(off_site_basis, off_site_data)
+# Here, solver is an optional field with default "LSQR" which 
+# specifies the solver used to solve the least squares in fitting
+# Other possible choice are "ARD", "BRR", "RRQR" etc.
+fit!(on_site_basis, on_site_data; solver = "LSQR")
+fit!(off_site_basis, off_site_data; solver = "LSQR")
 
 ```
 
