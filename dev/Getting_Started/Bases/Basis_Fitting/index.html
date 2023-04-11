@@ -6,22 +6,31 @@ database_path = &quot;example_data.h5&quot;
 # Name/path of/to the system to which fitting data should be drawn 
 target_system = &quot;0224&quot;
 
-# Construct a pair of on and off-site bases
-on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0), (14, 3, 4))
-off_site_basis = Basis(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0), (14, 14, 6, 6))
-
-
 # Load the real-space Hamiltonian matrix, atoms object, cell translation vectors, and basis set definition
 H, atoms, images, basis_definition = h5open(database_path) do database
     target = database[target_system]
     load_hamiltonian(target), load_atoms(target; recentre=true), load_cell_translations(target), load_basis_set_definition(target)
 end
 
+# Get the species of the system - it can be done in several ways and here just comes one
+# This step can be skipped if all atoms in this system are of the same type
+species = unique(atoms.Z)
+# Alternatively, one can use 
+# using JuLIP
+# species = AtomicNumber.([ keys(basis_definition)... ])
+
+# Construct a pair of on and off-site bases
+on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0; species = (try species catch nothing end)), (14, 3, 4))
+off_site_basis = Basis(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0; species = (try species catch nothing end)), (14, 14, 6, 6))
+
 # Gather all relevant data for fitting 
 on_site_data = get_dataset(H, atoms, on_site_basis, basis_definition, images)
 off_site_data = get_dataset(H, atoms, off_site_basis, basis_definition, images)
 
 # Perform the fitting operation
-fit!(on_site_basis, on_site_data)
-fit!(off_site_basis, off_site_data)
-</code></pre><p>The fitting data must be provided as a <code>DataSet</code> instance. These structures contain all of the data required to carry out the fitting process; specifically the target sub-blocks and state objects required to perform a fitting operation. The <code>get_dataset</code> convenience function auto-collects all relevant data, which can be filtered as and when needed by the user. This avoids users having to manually collect and construct <code>DataSet</code> instances themselves.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Basis_Construction/">« Basis Construction</a><a class="docs-footer-nextpage" href="../Basis_Predicting/">Basis Predicting »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Friday 31 March 2023 19:58">Friday 31 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+# Here, solver is an optional field with default &quot;LSQR&quot; which 
+# specifies the solver used to solve the least squares in fitting
+# Other possible choice are &quot;QR&quot;, &quot;ARD&quot;, &quot;BRR&quot;, &quot;RRQR&quot; etc.
+fit!(on_site_basis, on_site_data; solver = &quot;LSQR&quot;)
+fit!(off_site_basis, off_site_data; solver = &quot;LSQR&quot;)
+</code></pre><p>The fitting data must be provided as a <code>DataSet</code> instance. These structures contain all of the data required to carry out the fitting process; specifically the target sub-blocks and state objects required to perform a fitting operation. The <code>get_dataset</code> convenience function auto-collects all relevant data, which can be filtered as and when needed by the user. This avoids users having to manually collect and construct <code>DataSet</code> instances themselves.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Basis_Construction/">« Basis Construction</a><a class="docs-footer-nextpage" href="../Basis_Predicting/">Basis Predicting »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 11 April 2023 15:24">Tuesday 11 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
