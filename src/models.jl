@@ -5,6 +5,9 @@ import ACEbase: read_dict, write_dict
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
 using ACEhamiltonians.Bases: AHBasis, is_fitted
 using ACEhamiltonians: DUAL_BASIS_MODEL
+# Once we change the keys of basis_def from Integer to AtomicNumber, we will no 
+# longer need JuLIP here 
+using JuLIP
 
 
 export Model
@@ -51,12 +54,16 @@ struct Model
         # Developers Notes
         # This makes the assumption that all z₁-z₂-ℓ₁-ℓ₂ interactions are represented
         # by the same model.
+        
+        # get a species list from basis_definition 
+        species = AtomicNumber.([ keys(basis_definition)... ])
+        
         # Discuss use of the on/off_site_cache entities
 
         on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHBasis}()
         off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHBasis}()
         
-        # Caching the basis functions of the functions is faster and allows ust to reuse
+        # Caching the basis functions of the functions is faster and allows us to reuse
         # the same basis function for similar interactions.
         ace_basis_on = with_cache(on_site_ace_basis)
         ace_basis_off = with_cache(off_site_ace_basis)
@@ -80,8 +87,7 @@ struct Model
                         id = (zᵢ, n₁, n₂)
                         @debug "Building on-site model : $id"
                         ace_basis = ace_basis_on( # On-site bases
-                            ℓ₁, ℓ₂, on_site_parameters[id]...)
-                        #TODO: add species to the above line
+                            ℓ₁, ℓ₂, on_site_parameters[id]...; species = species)
 
                         on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
                     end
@@ -90,8 +96,7 @@ struct Model
                     @debug "Building off-site model: $id"
 
                     ace_basis = ace_basis_off( # Off-site bases
-                        ℓ₁, ℓ₂, off_site_parameters[id]...)
-                    #TODO: add species to the above line
+                        ℓ₁, ℓ₂, off_site_parameters[id]...; species = species)
                     
                     @static if DUAL_BASIS_MODEL
                         if homo_atomic && n₁ == n₂

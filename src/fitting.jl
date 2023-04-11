@@ -241,7 +241,7 @@ function fit!(
     tolerance::Union{F, Nothing}=nothing,
     recentre::Bool=false, 
     target::Union{String, Nothing}=nothing, 
-    refit::Bool=false) where F<:AbstractFloat
+    refit::Bool=false, solver = "LSQR") where F<:AbstractFloat
     
     # Todo:
     #   - Add fitting parameters options which uses a `Params` instance to define fitting
@@ -299,7 +299,7 @@ function fit!(
     end
 
     # Fit the on/off-site models
-    fit!(model, fitting_data; refit=refit)
+    fit!(model, fitting_data; refit=refit, solver = solver)
     
 end
 
@@ -319,7 +319,7 @@ Fit the specified model using the provided data.
   can be suppressed by setting `refit=true`.
 """
 function fit!(
-    model::Model, fitting_data; refit::Bool=false)
+    model::Model, fitting_data; refit::Bool=false, solver="LSQR")
 
     @debug "Fitting off site bases:"
     for (id, basis) in model.off_site_bases
@@ -331,7 +331,7 @@ function fit!(
             @debug "Skipping $(id): fitting dataset is empty"
         else
             @debug "Fitting $(id): using $(length(fitting_data[id])) fitting points"
-            fit!(basis, fitting_data[id])
+            fit!(basis, fitting_data[id]; solver = solver)
         end    
     end
 
@@ -345,7 +345,7 @@ function fit!(
             @debug "Skipping $(id): fitting dataset is empty"
         else
             @debug "Fitting $(id): using $(length(fitting_data[id])) fitting points"
-            fit!(basis, fitting_data[id]; enable_mean=ison(basis))
+            fit!(basis, fitting_data[id]; enable_mean=ison(basis), solver = solver)
         end    
     end
 end
