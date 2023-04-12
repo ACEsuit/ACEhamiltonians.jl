@@ -7,8 +7,8 @@
 The `ACEhamiltonians` package is a `Julia` package that provides tools for constructing, fitting, and predicting self-consistent Hamiltonian and overlap matrices in solid-state systems. It is based on the atomic cluster expansion (ACE) approach and the associated [ACEsuit package](https://github.com/ACEsuit/ACE.jl). The `ACEhamiltonians` package contains functions for generating on-site and off-site basis functions, fitting these bases to theoretical (DFT) data, and predicting the Hamiltonian and overlap matrices for any atomic configuration in real or reciprocal space. `ACEhamiltonians` provides a flexible and efficient way to model the electronic structure of materials and is a valuable tool for researchers in computational materials science. Please refer to the associated [article](https://www.nature.com/articles/s41524-022-00843-2) for a more in-depth description of the methodological underpinnings of this package.
 
 # Getting Started
-This quick-start guide provides an overview of the `ACEhamiltonians` framework, including the `Model` and `Basis` structures.
-The `Model` structure represents a model that includes on-site and off-site bases, their corresponding parameters, and the basis definition, while the `Basis` structures within represents the interaction between atomic shells in a system.
+This quick-start guide provides an overview of the `ACEhamiltonians` framework, including the `Model` and `SubModel` structures.
+The `Model` structure represents a model that includes on-site and off-site bases, their corresponding parameters, and the basis definition, while the `SubModel` structures within represents the interaction between atomic shells in a system.
 The guide outlines the construction, fitting, and predicting processes for both structures, providing users with an efficient and flexible way to represent interactions in various systems.
 Links to more detailed documents are also provided as necessary.
 
@@ -63,22 +63,24 @@ You can use the `cell_translations` method to estimate them based on the distanc
 
 
 
-## Bases
-The `Basis` structure is a key component of the `ACEHamiltonians` framework, representing the interaction between atomic shells in a system.
-It is constructed from on-site or off-site ACE basis functions and contains a unique identifier (`id`) for the specific interaction.
-Once fitted, the `Basis` structure holds `coefficients` and `mean` values used for making predictions.
+## SubModels
+Instead of constructing, fitting and preficting with the `Model` structure, whose input and output are both whole Hamiltonian, the `SubModel` structure gives the users 
+more flexibility in terms of subblock fitting. 
+It is nevertheless another key component of the `ACEHamiltonians` framework, representing the interaction between atomic shells in a system.
+To use this structure, one start with constructibg on-site or off-site ACE basis and specifying a unique identifier (`id`) for the specific interaction.
+Once fitted(with the help of data), the `SubModel` structure holds `coefficients` and `mean` values used for making predictions.
 It is a flexible and efficient way to represent interactions in various systems, making it an essential part of the model fitting and prediction process.
 
-Typically, creating isolated `Basis` instances isn't commonly required, as the `Model` encompasses the essential functionality for constructing and applying bases. However, working with individual Basis instances can be beneficial during hyperparameter optimization and are therefore discussed here.
+Typically, creating isolated `SubModel` instances isn't commonly required, as the `Model` encompasses the essential functionality for constructing and applying bases. However, working with individual SubModel instances can be beneficial during hyperparameter optimization and are therefore discussed here.
 
 
-The [`Basis Construction`](Bases/Basis_Construction.md) section explains how to create individual on-site and off-site bases using the `on_site_ace_basis` and `off_site_ace_basis` functions, respectively. The process involves specifying necessary parameters such as quantum numbers, correlation order, maximum polynomial degree, and cutoff distances. After creating the core basis, it is wrapped in a `Basis` instance, which associates the basis with an interaction and provides an identifier. The `Basis` structure is utilized during the fitting process and when making predictions.
+The [`SubModel Construction`](Bases/Basis_Construction.md) section explains how to create individual on-site and off-site bases using the `on_site_ace_basis` and `off_site_ace_basis` functions, respectively. The process involves specifying necessary parameters such as quantum numbers, correlation order, maximum polynomial degree, and cutoff distances. After creating the core basis, it is wrapped in a `SubModel` instance, which associates the basis with an interaction and provides an identifier. The `SubModel` structure is utilised during the fitting process and when making predictions.
 
 
-The [`Basis Fitting`](Bases/Basis_Fitting.md) section explains how to fit individual `Basis` instances by providing the basis and fitting data to the `fit!` function. The function requires a `DataSet` instance containing all necessary data for the fitting process. The `get_dataset` convenience function automatically collects all relevant data, simplifying the fitting operation. The fitting process involves loading the real-space Hamiltonian matrix, atoms object, cell translation vectors, and basis set definition, and then performing the fitting operation on the bases.
+The [`SubModel Fitting`](Bases/Basis_Fitting.md) section explains how to fit individual `SubModel` instances by providing the basis and fitting data to the `fit!` function. The function requires a `DataSet` instance containing all necessary data for the fitting process. The `get_dataset` convenience function automatically collects all relevant data, simplifying the fitting operation. The fitting process involves loading the real-space Hamiltonian matrix, atoms object, cell translation vectors, and basis set definition, and then performing the fitting operation on the bases.
 
 
-The [`Basis Predicting`](Bases/Basis_Predicting.md) section describes how to make predictions for individual bases using the `predict` function. By providing a `Basis` instance and a state-vector (a vector of `AbstractState` instances), predictions can be made for on-site and off-site interactions. The example demonstrates how to load an atoms object, obtain the on-site and off-site states representing the environment, and make predictions for these states. Predictions can also be made for multiple blocks simultaneously by providing a vector containing multiple state-vectors.
+The [`SubModel Predicting`](Bases/Basis_Predicting.md) section describes how to make predictions for individual bases using the `predict` function. By providing a `SubModel` instance and a state-vector (a vector of `AbstractState` instances), predictions can be made for on-site and off-site interactions. The example demonstrates how to load an atoms object, obtain the on-site and off-site states representing the environment, and make predictions for these states. Predictions can also be made for multiple blocks simultaneously by providing a vector containing multiple state-vectors.
 
 
 # Installation and Setup
