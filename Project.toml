@@ -1,6 +1,6 @@
 name = "ACEhamiltonians"
 uuid = "0c0b7517-201b-4082-a776-cd952d974092"
-version = "0.0.1"
+version = "0.1.0"
 
 [deps]
 ACE = "3e8ccfd2-c8b0-11ea-32f1-f3a5990fd77a"
