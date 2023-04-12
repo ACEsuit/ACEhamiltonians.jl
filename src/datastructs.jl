@@ -448,11 +448,11 @@ function get_dataset(
     basis_def = model.basis_definition
     on_site_data = Dict(
         basis.id => get_dataset(matrix, atoms, basis, basis_def, images; kwargs...)
-        for basis in values(model.on_site_bases))
+        for basis in values(model.on_site_submodels))
 
     off_site_data = Dict(
         basis.id => get_dataset(matrix, atoms, basis, basis_def, images; kwargs...)
-        for basis in values(model.off_site_bases))
+        for basis in values(model.off_site_submodels))
 
     return on_site_data, off_site_data
 end

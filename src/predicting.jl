@@ -251,7 +251,7 @@ function _predict(model, atoms, cell_indices)
 
             
             # Get the off-site basis associated with this interaction
-            basis_off = model.off_site_bases[(species₁, species₂, shellᵢ, shellⱼ)]
+            basis_off = model.off_site_submodels[(species₁, species₂, shellᵢ, shellⱼ)]
 
             # Identify off-site sub-blocks with bond-distances less than the specified cutoff
             off_blockᵢ = filter_idxs_by_bond_distance(
@@ -285,7 +285,7 @@ function _predict(model, atoms, cell_indices)
             # to approximate the on-site sub-blocks as identify matrices.
             if species₁ ≡ species₂ && model.label ≠ "S"
                 # Get the on-site basis and construct the on-site states
-                basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
+                basis_on = model.on_site_submodels[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
                 
                 # Don't try to compute on-site interactions if none exist
@@ -338,7 +338,7 @@ function _predict(model, atoms)
 
         for (shellᵢ, shellⱼ) in shell_pairs(species₁, species₂, basis_def)
 
-            basis_off = model.off_site_bases[(species₁, species₂, shellᵢ, shellⱼ)]
+            basis_off = model.off_site_submodels[(species₁, species₂, shellᵢ, shellⱼ)]
 
             off_blockᵢ = filter_idxs_by_bond_distance(
                 filter_off_site_idxs(blockᵢ), 
@@ -366,7 +366,7 @@ function _predict(model, atoms)
 
             
             if species₁ ≡ species₂ && model.label ≠ "S"
-                basis_on = model.on_site_bases[(species₁, shellᵢ, shellⱼ)]
+                basis_on = model.on_site_submodels[(species₁, shellᵢ, shellⱼ)]
                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
                 
 
@@ -439,7 +439,7 @@ function _maximum_distance_estimation(model::Model)
     # Maximum effective envelope distance 
     max₃ = maximum(
         [sqrt((env.r0cut + env.zcut)^2 + (env.rcut/2)^2)
-        for env in envelope.(values(model.off_site_bases))])
+        for env in envelope.(values(model.off_site_submodels))])
     
     return max(max₁, max₂, max₃)
 

@@ -24,8 +24,8 @@ export Model
 #   - Clean up 
 struct Model
 
-    on_site_bases
-    off_site_bases
+    on_site_submodels
+    off_site_submodels
     on_site_parameters
     off_site_parameters
     basis_definition
@@ -35,14 +35,14 @@ struct Model
     meta_data::Dict{String, Any}
 
     function Model(
-        on_site_bases, off_site_bases, on_site_parameters::OnSiteParaSet,
+        on_site_submodels, off_site_submodels, on_site_parameters::OnSiteParaSet,
         off_site_parameters::OffSiteParaSet, basis_definition, label::String,
         meta_data::Union{Dict, Nothing}=nothing)
         
         # If no meta-data is supplied then just default to a blank dictionary
         meta_data = isnothing(meta_data) ? Dict{String, Any}() : meta_data  
         
-        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters,
+        new(on_site_submodels, off_site_submodels, on_site_parameters, off_site_parameters,
             basis_definition, label, meta_data)
     end
     
@@ -123,7 +123,7 @@ end
 # Associated methods
 
 Base.:(==)(x::Model, y::Model) = (
-    x.on_site_bases == y.on_site_bases && x.off_site_bases == y.off_site_bases
+    x.on_site_submodels == y.on_site_submodels && x.off_site_submodels == y.off_site_submodels
     && x.on_site_parameters == y.on_site_parameters && x.off_site_parameters == y.off_site_parameters)
 
 
@@ -149,7 +149,7 @@ function ACEbase.write_dict(m::Model)
         end
     end
 
-    for basis in union(values(m.on_site_bases), values(m.off_site_bases))        
+    for basis in union(values(m.on_site_submodels), values(m.off_site_submodels))        
         add_basis(basis.basis)
     end
 
@@ -162,8 +162,8 @@ function ACEbase.write_dict(m::Model)
 
     dict =  Dict(
         "__id__"=>"HModel",
-        "on_site_bases"=>Dict(k=>write_dict(v, true) for (k, v) in m.on_site_bases),
-        "off_site_bases"=>Dict(k=>write_dict(v, true) for (k, v) in m.off_site_bases),
+        "on_site_submodels"=>Dict(k=>write_dict(v, true) for (k, v) in m.on_site_submodels),
+        "off_site_submodels"=>Dict(k=>write_dict(v, true) for (k, v) in m.off_site_submodels),
         "on_site_parameters"=>write_dict(m.on_site_parameters),
         "off_site_parameters"=>write_dict(m.off_site_parameters),
         "basis_definition"=>Dict(k=>write_dict(v) for (k, v) in m.basis_definition),
@@ -184,8 +184,8 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     end
 
     # Replace basis object hashs with the appropriate object. 
-    set_bases(dict["on_site_bases"], dict["bases_hashes"])
-    set_bases(dict["off_site_bases"], dict["bases_hashes"])
+    set_bases(dict["on_site_submodels"], dict["bases_hashes"])
+    set_bases(dict["off_site_submodels"], dict["bases_hashes"])
 
     ensure_int(v) = v isa String ? parse(Int, v) : v
     
@@ -212,8 +212,8 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     end
 
     return Model(
-        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_bases"]),
-        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_bases"]),
+        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_submodels"]),
+        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_submodels"]),
         read_dict(dict["on_site_parameters"]),
         read_dict(dict["off_site_parameters"]),
         Dict(ensure_int(k)=>read_dict(v) for (k, v) in dict["basis_definition"]),
@@ -228,11 +228,11 @@ function Base.show(io::IO, model::Model)
 
     # Work out if the on/off site bases are fully, partially or un-fitted.
     f = b -> if all(b) "no" elseif all(!, b) "yes" else "partially" end
-    on = f([!is_fitted(i) for i in values(model.on_site_bases)])
-    off = f([!is_fitted(i) for i in values(model.off_site_bases)])
+    on = f([!is_fitted(i) for i in values(model.on_site_submodels)])
+    off = f([!is_fitted(i) for i in values(model.off_site_submodels)])
     
     # Identify the species present
-    species = join(sort(unique(getindex.(collect(keys(model.on_site_bases)), 1))), ", ", " & ")
+    species = join(sort(unique(getindex.(collect(keys(model.on_site_submodels)), 1))), ", ", " & ")
 
     print(io, "Model(fitted=(on: $on, off: $off), species: ($species))")
 end

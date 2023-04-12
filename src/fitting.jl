@@ -272,7 +272,7 @@ function fit!(
         images = ndims(matrix) == 2 ? nothing : load_cell_translations(system)
         
         # Loop over the on site bases and collect the appropriate data
-        for basis in values(model.on_site_bases)
+        for basis in values(model.on_site_submodels)
             data_set = get_dataset(matrix, atoms, basis, model.basis_definition, images;
                 tolerance=tolerance)
 
@@ -286,7 +286,7 @@ function fit!(
         end 
 
         # Repeat for the off-site models
-        for basis in values(model.off_site_bases)
+        for basis in values(model.off_site_submodels)
             data_set = get_dataset(matrix, atoms, basis, model.basis_definition, images;
                 tolerance=tolerance, filter_bonds=true)
         
@@ -322,7 +322,7 @@ function fit!(
     model::Model, fitting_data; refit::Bool=false, solver="LSQR")
 
     @debug "Fitting off site bases:"
-    for (id, basis) in model.off_site_bases
+    for (id, basis) in model.off_site_submodels
         if !haskey(fitting_data, id)
             @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
@@ -336,7 +336,7 @@ function fit!(
     end
 
     @debug "Fitting on site bases:"
-    for (id, basis) in model.on_site_bases
+    for (id, basis) in model.on_site_submodels
         if !haskey(fitting_data, id)
             @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
@@ -388,7 +388,7 @@ function old_fit!(
         # Loop over the on site bases and collect the appropriate data
         if haskey(index_data, "atomic_indices")
             println("Gathering on-site data:")
-            for basis in values(model.on_site_bases)
+            for basis in values(model.on_site_submodels)
                 println("\t- $basis")
                 data_set = get_dataset(
                     matrix, atoms, basis, model.basis_definition;
@@ -402,7 +402,7 @@ function old_fit!(
         # Repeat for the off-site models
         if haskey(index_data, "atom_block_indices")
             println("Gathering off-site data:")
-            for basis in values(model.off_site_bases)
+            for basis in values(model.off_site_submodels)
                 println("\t- $basis")
                 data_set = get_dataset(
                     matrix, atoms, basis, model.basis_definition;
