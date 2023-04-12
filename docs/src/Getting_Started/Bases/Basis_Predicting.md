@@ -1,5 +1,5 @@
-# Basis Predicting
-Predictions can be made for individual bases by providing a `Basis` instance along with a state-vector (a vector of `AbstractState` instance) to the `predict` function.
+# SubModel Predicting
+Predictions can be made for individual bases by providing a `SubModel` instance along with a state-vector (a vector of `AbstractState` instance) to the `predict` function.
 ```julia
 
 
@@ -17,11 +17,10 @@ on_site_state = get_state(1, atoms)
 
 # Get the off-site state representing the environment about the bond
 # between atom 1 in the origin cell and atom 2 in image [0, 0, 1].
-off_site_state = get_state(1, 2, atoms, envelope(off_site_basis), [0, 0, 1])
+off_site_state = get_state(1, 2, atoms, envelope(off_site_pp_model), [0, 0, 1])
 
 # Make the predictions
-on_site_block = predict(on_site_basis, on_site_state)
-off_site_block = predict(off_site_basis, off_site_state)
+on_site_sp_block = predict(on_site_sp_basis, on_site_state)
+off_site_pp_block = predict(off_site_pp_basis, off_site_state)
 ```
 Predictions can also be made for multiple blocks simultaneously by providing a vector containing multiple state-vectors.
-

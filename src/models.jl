@@ -3,7 +3,7 @@ module Models
 using ACEhamiltonians, ACE, ACEbase
 import ACEbase: read_dict, write_dict
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
-using ACEhamiltonians.Bases: AHBasis, is_fitted
+using ACEhamiltonians.Bases: AHSubModel, is_fitted
 using ACEhamiltonians: DUAL_BASIS_MODEL
 # Once we change the keys of basis_def from Integer to AtomicNumber, we will no 
 # longer need JuLIP here 
@@ -24,8 +24,8 @@ export Model
 #   - Clean up 
 struct Model
 
-    on_site_bases
-    off_site_bases
+    on_site_submodels
+    off_site_submodels
     on_site_parameters
     off_site_parameters
     basis_definition
@@ -35,14 +35,14 @@ struct Model
     meta_data::Dict{String, Any}
 
     function Model(
-        on_site_bases, off_site_bases, on_site_parameters::OnSiteParaSet,
+        on_site_submodels, off_site_submodels, on_site_parameters::OnSiteParaSet,
         off_site_parameters::OffSiteParaSet, basis_definition, label::String,
         meta_data::Union{Dict, Nothing}=nothing)
         
         # If no meta-data is supplied then just default to a blank dictionary
         meta_data = isnothing(meta_data) ? Dict{String, Any}() : meta_data  
         
-        new(on_site_bases, off_site_bases, on_site_parameters, off_site_parameters,
+        new(on_site_submodels, off_site_submodels, on_site_parameters, off_site_parameters,
             basis_definition, label, meta_data)
     end
     
@@ -60,8 +60,8 @@ struct Model
         
         # Discuss use of the on/off_site_cache entities
 
-        on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHBasis}()
-        off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHBasis}()
+        on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHSubModel}()
+        off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHSubModel}()
         
         # Caching the basis functions of the functions is faster and allows us to reuse
         # the same basis function for similar interactions.
@@ -89,7 +89,7 @@ struct Model
                         ace_basis = ace_basis_on( # On-site bases
                             ℓ₁, ℓ₂, on_site_parameters[id]...; species = species)
 
-                        on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
+                        on_sites[(zᵢ, n₁, n₂)] = AHSubModel(ace_basis, id)
                     end
 
                     id = (zᵢ, zⱼ, n₁, n₂)
@@ -100,14 +100,14 @@ struct Model
                     
                     @static if DUAL_BASIS_MODEL
                         if homo_atomic && n₁ == n₂
-                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, id)
                         else
                             ace_basis_i = ace_basis_off(
                                 ℓ₂, ℓ₁, off_site_parameters[(zⱼ, zᵢ, n₂, n₁)]...)
-                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, ace_basis_i, id)
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, ace_basis_i, id)
                         end
                     else
-                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, id)
                     end     
                 end
             end
@@ -123,7 +123,7 @@ end
 # Associated methods
 
 Base.:(==)(x::Model, y::Model) = (
-    x.on_site_bases == y.on_site_bases && x.off_site_bases == y.off_site_bases
+    x.on_site_submodels == y.on_site_submodels && x.off_site_submodels == y.off_site_submodels
     && x.on_site_parameters == y.on_site_parameters && x.off_site_parameters == y.off_site_parameters)
 
 
@@ -134,7 +134,7 @@ Base.:(==)(x::Model, y::Model) = (
 function ACEbase.write_dict(m::Model)
     # ACE bases are stored as hash values which are checked against the "bases_hashes"
     # dictionary during reading. This avoids saving multiple copies of the same object;
-    # which is common as `AHBasis` objects tend to share basis functions.
+    # which is common as `AHSubModel` objects tend to share basis functions.
 
 
     bases_hashes = Dict{String, Any}()
@@ -149,7 +149,7 @@ function ACEbase.write_dict(m::Model)
         end
     end
 
-    for basis in union(values(m.on_site_bases), values(m.off_site_bases))        
+    for basis in union(values(m.on_site_submodels), values(m.off_site_submodels))        
         add_basis(basis.basis)
     end
 
@@ -162,8 +162,8 @@ function ACEbase.write_dict(m::Model)
 
     dict =  Dict(
         "__id__"=>"HModel",
-        "on_site_bases"=>Dict(k=>write_dict(v, true) for (k, v) in m.on_site_bases),
-        "off_site_bases"=>Dict(k=>write_dict(v, true) for (k, v) in m.off_site_bases),
+        "on_site_submodels"=>Dict(k=>write_dict(v, true) for (k, v) in m.on_site_submodels),
+        "off_site_submodels"=>Dict(k=>write_dict(v, true) for (k, v) in m.off_site_submodels),
         "on_site_parameters"=>write_dict(m.on_site_parameters),
         "off_site_parameters"=>write_dict(m.off_site_parameters),
         "basis_definition"=>Dict(k=>write_dict(v) for (k, v) in m.basis_definition),
@@ -184,8 +184,8 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     end
 
     # Replace basis object hashs with the appropriate object. 
-    set_bases(dict["on_site_bases"], dict["bases_hashes"])
-    set_bases(dict["off_site_bases"], dict["bases_hashes"])
+    set_bases(dict["on_site_submodels"], dict["bases_hashes"])
+    set_bases(dict["off_site_submodels"], dict["bases_hashes"])
 
     ensure_int(v) = v isa String ? parse(Int, v) : v
     
@@ -212,8 +212,8 @@ function ACEbase.read_dict(::Val{:HModel}, dict::Dict)::Model
     end
 
     return Model(
-        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_bases"]),
-        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_bases"]),
+        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["on_site_submodels"]),
+        Dict(parse_key(k)=>read_dict(v) for (k, v) in dict["off_site_submodels"]),
         read_dict(dict["on_site_parameters"]),
         read_dict(dict["off_site_parameters"]),
         Dict(ensure_int(k)=>read_dict(v) for (k, v) in dict["basis_definition"]),
@@ -228,11 +228,11 @@ function Base.show(io::IO, model::Model)
 
     # Work out if the on/off site bases are fully, partially or un-fitted.
     f = b -> if all(b) "no" elseif all(!, b) "yes" else "partially" end
-    on = f([!is_fitted(i) for i in values(model.on_site_bases)])
-    off = f([!is_fitted(i) for i in values(model.off_site_bases)])
+    on = f([!is_fitted(i) for i in values(model.on_site_submodels)])
+    off = f([!is_fitted(i) for i in values(model.off_site_submodels)])
     
     # Identify the species present
-    species = join(sort(unique(getindex.(collect(keys(model.on_site_bases)), 1))), ", ", " & ")
+    species = join(sort(unique(getindex.(collect(keys(model.on_site_submodels)), 1))), ", ", " & ")
 
     print(io, "Model(fitted=(on: $on, off: $off), species: ($species))")
 end

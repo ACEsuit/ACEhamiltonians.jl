@@ -39,14 +39,14 @@ end
 
 
 function _get_off_site_dict(model)
-    # This just returns the model.off_site_bases filed with with the
+    # This just returns the model.off_site_submodels filed with with the
     # id key swapped out for a more visually intuitive string
     bases = Dict()
 
     basis_definition = model.basis_definition
 
     bases = Dict()
-    for (id, basis) in model.off_site_bases
+    for (id, basis) in model.off_site_submodels
         i , j  = id[end-1:end]
         ℓ₁, ℓ₂ = basis_definition[id[1]][i], basis_definition[id[2]][j]
         name = "$(_l2s(ℓ₁))$(_subscript(i))$(_l2s(ℓ₂))$(_subscript(j))"
@@ -58,14 +58,14 @@ end
 
 
 function _get_on_site_dict(model)
-    # This just returns the model.off_site_bases filed with with the
+    # This just returns the model.off_site_submodels filed with with the
     # id key swapped out for a more visually intuitive string
     bases = Dict()
 
     basis_definition = model.basis_definition
 
     bases = Dict()
-    for (id, basis) in model.on_site_bases
+    for (id, basis) in model.on_site_submodels
         i , j  = id[end-1:end]
         ℓ₁, ℓ₂ = basis_definition[id[1]][i], basis_definition[id[1]][j]
         name = "$(_l2s(ℓ₁))$(_subscript(i))$(_l2s(ℓ₂))$(_subscript(j))"
@@ -342,22 +342,22 @@ end
     
         # Extract the off site basis dictionary and swap out the key for a more
         # visually meaningful string to help with debugging.
-        off_site_bases = _get_off_site_dict(model)
+        off_site_submodels = _get_off_site_dict(model)
     
         
-        _check_contrived_system_1(off_site_bases, basis_definition, database_path; tol=off_site_tol)
-        _check_contrived_system_2(off_site_bases, basis_definition, database_path; tol=off_site_tol)
-        _check_contrived_system_3(off_site_bases, basis_definition, database_path; tol=off_site_tol)
-        _check_contrived_system_4(off_site_bases, basis_definition, database_path; tol=off_site_tol)
+        _check_contrived_system_1(off_site_submodels, basis_definition, database_path; tol=off_site_tol)
+        _check_contrived_system_2(off_site_submodels, basis_definition, database_path; tol=off_site_tol)
+        _check_contrived_system_3(off_site_submodels, basis_definition, database_path; tol=off_site_tol)
+        _check_contrived_system_4(off_site_submodels, basis_definition, database_path; tol=off_site_tol)
     
     end
 
     @testset "On-site Contrived Tolerance Check" begin
         # No symmetry tests are required here thus only a tolerance check is
         # performed on one of the contrived systems.
-        on_site_bases = _get_on_site_dict(model)
+        on_site_submodels = _get_on_site_dict(model)
 
-        _check_on_site(on_site_bases, basis_definition, database_path; tol=on_site_tol)
+        _check_on_site(on_site_submodels, basis_definition, database_path; tol=on_site_tol)
         
     end
 
