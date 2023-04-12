@@ -22,7 +22,7 @@ Base.abs(a::AtomicNumber) = 0 # a.z
 # be required. The changes needed to be made in this file to remove the redundant model
 # are as follows:
 #   - Remove inverted state condition in single model `fit!` method.
-#   - `_assemble_ls` should take `AHBasis` entities.
+#   - `_assemble_ls` should take `AHSubModel` entities.
 #   - Remove inverted state condition from the various `predict` methods.
 
 # Todo:
@@ -159,39 +159,39 @@ end
 ###################
 
 """
-    fit!(basis, data;[ enable_mean])
+    fit!(submodel, data;[ enable_mean])
 
 Fits a specified model with the supplied data.
 
 # Arguments
-- `basis`: basis that is to be fitted.
+- `submodel`: a specified submodel that is to be fitted.
 - `data`: data that the basis is to be fitted to.
 - `enable_mean::Bool`: setting this flag to true enables a non-zero mean to be
    used.
 - `λ::AbstractFloat`: regularisation term to be used (default=1E-7).
 - `solver::String`: solver to be used (default="LSQR")
 """
-function fit!(basis::T₁, data::T₂; enable_mean::Bool=false, λ=1E-7, solver="LSQR") where {T₁<:AHBasis, T₂<:AbstractFittingDataSet}
+function fit!(submodel::T₁, data::T₂; enable_mean::Bool=false, λ=1E-7, solver="LSQR") where {T₁<:AHSubModel, T₂<:AbstractFittingDataSet}
 
     # Get the basis function's scaling factor
-    Γ = Diagonal(scaling(basis.basis, 2))
+    Γ = Diagonal(scaling(submodel.basis, 2))
 
     # Setup the least squares problem
-    Φ, Y, x̄ = _assemble_ls(basis.basis, data, enable_mean)
+    Φ, Y, x̄ = _assemble_ls(submodel.basis, data, enable_mean)
     
     # Assign the mean value to the basis set
-    basis.mean .= x̄
+    submodel.mean .= x̄
 
     # Solve the least squares problem and get the coefficients
 
-    basis.coefficients .= collect(solve_ls(Φ, Y, λ, Γ, solver))
+    submodel.coefficients .= collect(solve_ls(Φ, Y, λ, Γ, solver))
 
     @static if DUAL_BASIS_MODEL
-        if T₁<:AnisoBasis
-            Γ = Diagonal(scaling(basis.basis_i, 2))
-            Φ, Y, x̄ = _assemble_ls(basis.basis_i, data', enable_mean)
-            basis.mean_i .= x̄
-            basis.coefficients_i .= collect(solve_ls(Φ, Y, λ, Γ, solver))
+        if T₁<:AnisoSubModel
+            Γ = Diagonal(scaling(submodel.basis_i, 2))
+            Φ, Y, x̄ = _assemble_ls(submodel.basis_i, data', enable_mean)
+            submodel.mean_i .= x̄
+            submodel.coefficients_i .= collect(solve_ls(Φ, Y, λ, Γ, solver))
         end
     end
 
@@ -313,8 +313,8 @@ Fit the specified model using the provided data.
 # Arguments
 - `model::Model`: the model that should be fitted.
 - `fitting_data`: dictionary providing the data to which the supplied model should be
-  fitted. This should hold one entry for each basis that is to be fitted and should take
-  the form `{Basis.id, DataSet}`.
+  fitted. This should hold one entry for each submodel that is to be fitted and should take
+  the form `{SubModel.id, DataSet}`.
 - `refit::Bool`: By default, already fitted bases will not be refitted, but this behaviour
   can be suppressed by setting `refit=true`.
 """
@@ -326,7 +326,7 @@ function fit!(
         if !haskey(fitting_data, id)
             @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
-            @debug "Skipping $(id): basis already fitted"
+            @debug "Skipping $(id): submodel already fitted"
         elseif length(fitting_data) ≡ 0
             @debug "Skipping $(id): fitting dataset is empty"
         else
@@ -340,7 +340,7 @@ function fit!(
         if !haskey(fitting_data, id)
             @debug "Skipping $(id): no fitting data provided"
         elseif is_fitted(basis) && !refit
-            @debug "Skipping $(id): basis already fitted"
+            @debug "Skipping $(id): submodel already fitted"
         elseif length(fitting_data) ≡ 0
             @debug "Skipping $(id): fitting dataset is empty"
         else
@@ -375,7 +375,7 @@ function old_fit!(
     get_matrix = Dict(  # Select an appropriate function to load the target matrix
         :H=>_load_old_hamiltonian, :S=>_load_old_overlap)[target]
 
-    fitting_data = IdDict{AHBasis, DataSet}()
+    fitting_data = IdDict{AHSubModel, DataSet}()
 
     # Loop over the specified systems
     for (database_path, index_data) in systems

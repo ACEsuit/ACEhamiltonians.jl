@@ -17,7 +17,7 @@ import Base
 import ACE: SphericalMatrix
 
 
-export AHBasis, radial, angular, categorical, envelope, on_site_ace_basis, off_site_ace_basis, filter_offsite_be, is_fitted, Basis, AnisoBasis
+export AHSubModel, radial, angular, categorical, envelope, on_site_ace_basis, off_site_ace_basis, filter_offsite_be, is_fitted, SubModel, AnisoSubModel
 """
 TODO:
     - A warning should perhaps be given if no filter function is given when one is
@@ -26,9 +26,9 @@ TODO:
     - Improve typing for the Model structure.
     - Replace e_cutₒᵤₜ, e_cutᵢₙ, etc. with more "typeable" names.
 """
-###################
-# Basis Structure #
-###################
+######################
+# SubModel Structure #
+######################
 # Todo:
 #   - Document
 #   - Give type information
@@ -36,19 +36,20 @@ TODO:
 
 
 
-# ╔═══════╗
-# ║ Basis ║
-# ╚═══════╝
+# ╔══════════╗
+# ║ SubModel ║
+# ╚══════════╝
 
-abstract type AHBasis end
+abstract type AHSubModel end
 
 
 
 """
 
 
-ACE basis for modelling symmetry invariant interactions.
-
+A Linear ACE model for modelling symmetry invariant interactions.
+In the context of Hamiltonian, this is just a (sub-)model for some specific
+blocks and is hence called SubModel
 
 # Fields
 - `basis::SymmetricBasis`:
@@ -57,19 +58,19 @@ ACE basis for modelling symmetry invariant interactions.
 - `mean::Matrix`:
 
 """
-struct Basis{T₁<:SymmetricBasis, T₂, T₃, T₄} <: AHBasis
+struct SubModel{T₁<:SymmetricBasis, T₂, T₃, T₄} <: AHSubModel
     basis::T₁
     id::T₂
     coefficients::T₃
     mean::T₄
 
-    function Basis(basis, id)
+    function SubModel(basis, id)
         t = ACE.valtype(basis)
         F = real(t.parameters[5])
-        Basis(basis, id, zeros(F, length(basis)), zeros(F, size(zero(t))))
+        SubModel(basis, id, zeros(F, length(basis)), zeros(F, size(zero(t))))
     end
 
-    function Basis(basis::T₁, id::T₂, coefficients::T₃, mean::T₄) where {T₁, T₂, T₃, T₄}
+    function SubModel(basis::T₁, id::T₂, coefficients::T₃, mean::T₄) where {T₁, T₂, T₃, T₄}
         new{T₁, T₂, T₃, T₄}(basis, id, coefficients, mean)
     end
 
@@ -77,7 +78,7 @@ end
 
 """
 
-ACE basis for modelling symmetry variant interactions.
+Another linear ACE model for modelling symmetry variant interactions.
 
 
 - `basis::SymmetricBasis`:
@@ -89,7 +90,7 @@ ACE basis for modelling symmetry variant interactions.
 - `mean_i::Matrix`:
 
 """
-struct AnisoBasis{T₁<:SymmetricBasis, T₂<:SymmetricBasis, T₃, T₄, T₅, T₆, T₇} <: AHBasis
+struct AnisoSubModel{T₁<:SymmetricBasis, T₂<:SymmetricBasis, T₃, T₄, T₅, T₆, T₇} <: AHSubModel
     basis::T₁
     basis_i::T₂
     id::T₃
@@ -98,32 +99,32 @@ struct AnisoBasis{T₁<:SymmetricBasis, T₂<:SymmetricBasis, T₃, T₄, T₅, 
     mean::T₆
     mean_i::T₇
 
-    function AnisoBasis(basis, basis_i, id)
+    function AnisoSubModel(basis, basis_i, id)
         t₁, t₂ = ACE.valtype(basis), ACE.valtype(basis_i)
         F = real(t₁.parameters[5])
-        AnisoBasis(
+        AnisoSubModel(
             basis, basis_i,  id, zeros(F, length(basis)), zeros(F, length(basis_i)),
             zeros(F, size(zero(t₁))), zeros(F, size(zero(t₂))))
     end
 
-    function AnisoBasis(basis::T₁, basis_i::T₂, id::T₃, coefficients::T₄, coefficients_i::T₅, mean::T₆, mean_i::T₇) where {T₁, T₂, T₃, T₄, T₅, T₆, T₇}
+    function AnisoSubModel(basis::T₁, basis_i::T₂, id::T₃, coefficients::T₄, coefficients_i::T₅, mean::T₆, mean_i::T₇) where {T₁, T₂, T₃, T₄, T₅, T₆, T₇}
         new{T₁, T₂, T₃, T₄, T₅, T₆, T₇}(basis, basis_i,  id, coefficients, coefficients_i, mean, mean_i)
     end
 end
 
-AHBasis(basis, id) = Basis(basis, id)
-AHBasis(basis, basis_i, id) = AnisoBasis(basis, basis_i, id)
+AHSubModel(basis, id) = SubModel(basis, id)
+AHSubModel(basis, basis_i, id) = AnisoSubModel(basis, basis_i, id)
 
 
-# ╭───────┬───────────────────────╮
-# │ Basis │ General Functionality │
-# ╰───────┴───────────────────────╯ 
-"""Boolean indicating whether a `Basis` instance is fitted; i.e. has non-zero coefficients"""
-is_fitted(basis::AHBasis) = !all(basis.coefficients .≈ 0.0) || !all(basis.mean .≈ 0.0)
+# ╭──────────┬───────────────────────╮
+# │ SubModel │ General Functionality │
+# ╰──────────┴───────────────────────╯ 
+"""Boolean indicating whether a `SubModel` instance is fitted; i.e. has non-zero coefficients"""
+is_fitted(submodel::AHSubModel) = !all(submodel.coefficients .≈ 0.0) || !all(submodel.mean .≈ 0.0)
 
 
-"""Check if two `Basis` instances are equivalent"""
-function Base.:(==)(x::T₁, y::T₂) where {T₁<:AHBasis, T₂<:AHBasis}
+"""Check if two `SubModel` instances are equivalent"""
+function Base.:(==)(x::T₁, y::T₂) where {T₁<:AHSubModel, T₂<:AHSubModel}
     
     # Check that the ID's, coefficients and means match up first 
     check = x.id == y.id && size(x.mean) == size(y.mean) && x.mean == y.mean
@@ -148,85 +149,87 @@ function Base.:(==)(x::T₁, y::T₂) where {T₁<:AHBasis, T₂<:AHBasis}
 end
 
 
-"""Expected shape of the sub-block associated with the `Basis`; 3×3 for a pp basis etc."""
-Base.size(basis::AHBasis) = (ACE.valtype(basis.basis).parameters[3:4]...,)
+"""Expected shape of the sub-block associated with the `SubModel`; 3×3 for a pp basis etc."""
+Base.size(submodel::AHSubModel) = (ACE.valtype(submodel.basis).parameters[3:4]...,)
 
 # """Expected type of resulting sub-blocks."""
 # Base.valtype(::Basis{T}) where T = T
 
 """Expected type of resulting sub-blocks."""
-function Base.valtype(::AHBasis)
-    throw("AHBasis structure type has been changed this function must be updated.")
+function Base.valtype(::AHSubModel)
+    throw("AHSubModel structure type has been changed this function must be updated.")
 end
 
 
-"""Azimuthal quantum numbers associated with the `Basis`."""
-azimuthals(basis::AHBasis) = (ACE.valtype(basis.basis).parameters[1:2]...,)
+"""Azimuthal quantum numbers associated with the `SubModel`."""
+azimuthals(submodel::AHSubModel) = (ACE.valtype(submodel.basis).parameters[1:2]...,)
 
-"""Returns a boolean indicating if the basis instance represents an on-site interaction."""
-Parameters.ison(x::AHBasis) = length(x.id) ≡ 3
+"""Returns a boolean indicating if the submodel instance represents an on-site interaction."""
+Parameters.ison(x::AHSubModel) = length(x.id) ≡ 3
 
 
 """
-    _filter_bases(basis, type)
+    _filter_bases(submodel, type)
 
-Helper function to retrieve specific basis function information out of a `AHBasis` instance.
+Helper function to retrieve specific submodel function information out of a `AHSubModel` instance.
 This is an internal function which is not expected to be used outside of this module. 
 
 Arguments:
-- `basis::AHBasis`: basis instance from which function is to be extracted.
-- `type::DataType`: type of the basis functions to extract; e.g. `CylindricalBondEnvelope`.
+- `submodel::AHSubModel`: submodel instance from which function is to be extracted.
+- `type::DataType`: type of the submodel functions to extract; e.g. `CylindricalBondEnvelope`.
 """
-function _filter_bases(basis::AHBasis, T)
-    functions = filter(i->i isa T, basis.basis.pibasis.basis1p.bases)
+function _filter_bases(submodel::AHSubModel, T)
+    functions = filter(i->i isa T, submodel.basis.pibasis.basis1p.bases)
     if length(functions) == 0
-        error("Could not locate basis function matching the supplied type")
+        error("Could not locate submodel function matching the supplied type")
     elseif length(functions) ≥ 2
-        @warn "Multiple matching basis functions found, only the first will be returned"
+        @warn "Multiple matching submodel functions found, only the first will be returned"
     end
     return functions[1]
 end
 
-"""Extract and return the radial component of a `AHBasis` instance."""
-radial(basis::AHBasis) = _filter_bases(basis, ACE.Rn1pBasis)
+"""Extract and return the radial component of a `AHSubModel` instance."""
+radial(submodel::AHSubModel) = _filter_bases(submodel, ACE.Rn1pBasis)
 
-"""Extract and return the angular component of a `AHBasis` instance."""
-angular(basis::AHBasis) = _filter_bases(basis, ACE.Ylm1pBasis)
+"""Extract and return the angular component of a `AHSubModel` instance."""
+angular(submodel::AHSubModel) = _filter_bases(submodel, ACE.Ylm1pBasis)
 
-"""Extract and return the categorical component of a `AHBasis` instance."""
-categorical(basis::AHBasis) = _filter_bases(basis, ACE.Categorical1pBasis)
+"""Extract and return the categorical component of a `AHSubModel` instance."""
+categorical(submodel::AHSubModel) = _filter_bases(submodel, ACE.Categorical1pBasis)
 
-"""Extract and return the bond envelope component of a `AHBasis` instance."""
-envelope(basis::AHBasis) = _filter_bases(basis, ACE.BondEnvelope)
+"""Extract and return the bond envelope component of a `AHSubModel` instance."""
+envelope(submodel::AHSubModel) = _filter_bases(submodel, ACE.BondEnvelope)
+
+#TODO: add extract function for species1p basis, if needed
 
 
-# ╭───────┬──────────────────╮
-# │ Basis │ IO Functionality │
-# ╰───────┴──────────────────╯
+# ╭──────────┬──────────────────╮
+# │ SubModel │ IO Functionality │
+# ╰──────────┴──────────────────╯
 """
-    write_dict(basis[,hash_basis])
+    write_dict(submodel[,hash_basis])
 
-Convert a `Basis` structure instance into a representative dictionary.
+Convert a `SubModel` structure instance into a representative dictionary.
 
 # Arguments
-- `basis::Basis`: the `Basis` instance to parsed.
+- `submodel::SubModel`: the `SubModel` instance to parsed.
 - `hash_basis::Bool`: ff `true` then hash values will be stored in place of
   the `SymmetricBasis` objects.
 """
-function write_dict(basis::T, hash_basis=false) where T<:Basis
+function write_dict(submodel::T, hash_basis=false) where T<:SubModel
     return Dict(
-        "__id__"=>"Basis",
-        "basis"=>hash_basis ? string(hash(basis.basis)) : write_dict(basis.basis),
-        "id"=>basis.id,
-        "coefficients"=>write_dict(basis.coefficients),
-        "mean"=>write_dict(basis.mean))
+        "__id__"=>"SubModel",
+        "basis"=>hash_basis ? string(hash(submodel.basis)) : write_dict(submodel.basis),
+        "id"=>submodel.id,
+        "coefficients"=>write_dict(submodel.coefficients),
+        "mean"=>write_dict(submodel.mean))
 
 end
 
 
-"""Instantiate a `Basis` instance from a representative dictionary."""
-function ACEbase.read_dict(::Val{:Basis}, dict::Dict)
-    return Basis(
+"""Instantiate a `SubModel` instance from a representative dictionary."""
+function ACEbase.read_dict(::Val{:SubModel}, dict::Dict)
+    return SubModel(
         read_dict(dict["basis"]),
         Tuple(dict["id"]),
         read_dict(dict["coefficients"]),
@@ -234,8 +237,8 @@ function ACEbase.read_dict(::Val{:Basis}, dict::Dict)
 end
 
 
-function Base.show(io::IO, basis::T) where T<:AHBasis
-    print(io, "$(nameof(T))(id: $(basis.id), fitted: $(is_fitted(basis)))")
+function Base.show(io::IO, submodel::T) where T<:AHSubModel
+    print(io, "$(nameof(T))(id: $(submodel.id), fitted: $(is_fitted(submodel)))")
 end
 
 

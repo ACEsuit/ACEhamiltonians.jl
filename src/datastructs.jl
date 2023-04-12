@@ -319,7 +319,7 @@ end
 # │ DataSets │ Factories │
 # ╰──────────┴───────────╯
 # This section will hold the factory methods responsible for automating the construction
-# of `DataSet` entities. The `get_dataset` methods will be implemented once the `AHBasis`
+# of `DataSet` entities. The `get_dataset` methods will be implemented once the `AHSubModel`
 # structures have been implemented.
 
 
@@ -344,15 +344,15 @@ end
 
 
 """
-get_dataset(matrix, atoms, basis, basis_def[, images; tolerance, filter_bonds, focus])
+get_dataset(matrix, atoms, submodel, basis_def[, images; tolerance, filter_bonds, focus])
 
 Construct and return a `DataSet` entity containing the minimal data required to fit a
-`AHBasis` entity.
+`AHSubModel` entity.
 
 # Arguments
 - `matrix`: matrix from which sub-blocks are to be gathered.
 - `atoms`: atoms object representing the system to which the matrix pertains.
-- `basis`: `AHBasis` entity for the desired sub-block; the `id` field is used to identify
+- `submodel`: `AHSubModel` entity for the desired sub-block; the `id` field is used to identify
   which sub-blocks should be gathered and how they should be gathered.
 - `basis_def`: a basis definition specifying what orbitals are present on each species.
 - `images`: cell translation vectors associated with the matrix, this is only required
@@ -383,7 +383,7 @@ Construct and return a `DataSet` entity containing the minimal data required to 
  
 """
 function get_dataset(
-    matrix::AbstractArray, atoms::Atoms, basis::AHBasis, basis_def,
+    matrix::AbstractArray, atoms::Atoms, submodel::AHSubModel, basis_def,
     images::Union{Matrix, Nothing}=nothing;
     tolerance::Union{Nothing, <:AbstractFloat}=nothing, filter_bonds::Bool=true,
     focus::Union{Vector{<:Integer}, Matrix{<:Integer}, Nothing}=nothing,
@@ -394,7 +394,7 @@ function get_dataset(
     end
 
     # Locate and gather the sub-blocks correspond the interaction associated with `basis`  
-    blocks, block_idxs = locate_and_get_sub_blocks(matrix, basis.id..., atoms, basis_def; focus=focus, no_reduce=no_reduce)
+    blocks, block_idxs = locate_and_get_sub_blocks(matrix, submodel.id..., atoms, basis_def; focus=focus, no_reduce=no_reduce)
 
     if !isnothing(focus)
         mask = ∈(focus).(block_idxs[1, :]) .& ∈(focus).(block_idxs[2, :])
@@ -407,9 +407,9 @@ function get_dataset(
     # cutoff as specified by the bond envelope. This prevents having to construct states
     # (which is an expensive process) for interactions which will just be deleted later
     # on. Enabling this can save a non-trivial amount of time and memory. 
-    if !ison(basis) && filter_bonds
+    if !ison(submodel) && filter_bonds
         blocks, block_idxs = _filter_bond_idxs(
-            blocks, block_idxs, envelope(basis).r0cut, atoms, images) 
+            blocks, block_idxs, envelope(submodel).r0cut, atoms, images) 
     end
 
     if !isnothing(tolerance) # Filter out sparse sub-blocks; but only if instructed to 
@@ -417,13 +417,13 @@ function get_dataset(
     end
 
     # Construct states for each of the sub-blocks.
-    if ison(basis)
+    if ison(submodel)
         # For on-site states the cutoff radius is provided; this results in redundant
         # information being culled here rather than later on; thus saving on memory.
-        states = _get_states(block_idxs, atoms; r=radial(basis).R.ru)
+        states = _get_states(block_idxs, atoms; r=radial(submodel).R.ru)
     else
         # For off-site states the basis' bond envelope must be provided.
-        states = _get_states(block_idxs, atoms, envelope(basis), images)
+        states = _get_states(block_idxs, atoms, envelope(submodel), images)
     end
 
     # Construct and return the requested DataSet object
@@ -436,7 +436,7 @@ end
 
 """
 Construct a collection of `DataSet` instances storing the information required to fit
-their associated `AHBasis` entities. This convenience function will call the original
+their associated `AHSubModel` entities. This convenience function will call the original
 `get_dataset` method for each and every basis in the supplied model and return a
 dictionary storing once dataset for each basis in the model.
 
@@ -466,6 +466,4 @@ end
 # - The `get_dataset` method is likely to suffer from type instability issues as it is
 #   unlikely that Julia will know ahead of time whether the `DataSet` structure returned
 #   will contain on or off-states states; each having different associated structures.
-#   Thus type ambiguities in the `AHBasis` structures should be alleviated.
-
-
+#   Thus type ambiguities in the `AHSubModel` structures should be alleviated.

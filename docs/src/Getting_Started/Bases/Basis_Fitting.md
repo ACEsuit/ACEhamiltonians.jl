@@ -1,5 +1,5 @@
-# Basis Fitting
-Individual `Basis` instances may be fitted by supplying the `Basis` and fitting `data` to the `fit!` function. This single basis `fit!` function takes the two aforementioned positional arguments along with three optional keyword arguments: `solver` which specifies the solver to use during fitting which defaults to `LSQR`, `λ` is the degree of regularisation to be applied which defaults to `1E-7`, and `enable_mean` with permits a mean offset to be applied while this defaults to `false` it is advised to enable it when fitting on-site bases.
+# SubModel Fitting
+Individual `SubModel` instances may be fitted by supplying the `SubModel` and fitting `data` to the `fit!` function. This single basis `fit!` function takes the two aforementioned positional arguments along with three optional keyword arguments: `solver` which specifies the solver to use during fitting which defaults to `LSQR`, `λ` is the degree of regularisation to be applied which defaults to `1E-7`, and `enable_mean` with permits a mean offset to be applied while this defaults to `false` it is advised to enable it when fitting on-site bases.
 ```julia
 
 # Path to the database within which the fitting data is stored
@@ -21,20 +21,20 @@ species = unique(atoms.Z)
 # using JuLIP
 # species = AtomicNumber.([ keys(basis_definition)... ])
 
-# Construct a pair of on and off-site bases
-on_site_basis = Basis(on_site_ace_basis(0, 1, 2, 4, 6.0; species = (try species catch nothing end)), (14, 3, 4))
-off_site_basis = Basis(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0; species = (try species catch nothing end)), (14, 14, 6, 6))
+# Construct a pair of on and off-site model
+on_site_sp_model = SubModel(on_site_ace_basis(0, 1, 2, 4, 6.0; species = (try species catch nothing end)), (14, 3, 4))
+off_site_pp_model = SubModel(off_site_ace_basis(1, 1, 1, 4, 8.0, 4.0; species = (try species catch nothing end)), (14, 14, 6, 6))
 
 # Gather all relevant data for fitting 
-on_site_data = get_dataset(H, atoms, on_site_basis, basis_definition, images)
-off_site_data = get_dataset(H, atoms, off_site_basis, basis_definition, images)
+on_site_sp_data = get_dataset(H, atoms, on_site_sp_model, basis_definition, images)
+off_site_pp_data = get_dataset(H, atoms, off_site_pp_model, basis_definition, images)
 
 # Perform the fitting operation
 # Here, solver is an optional field with default "LSQR" which 
 # specifies the solver used to solve the least squares in fitting
 # Other possible choice are "QR", "ARD", "BRR", "RRQR" etc.
-fit!(on_site_basis, on_site_data; solver = "LSQR")
-fit!(off_site_basis, off_site_data; solver = "LSQR")
+fit!(on_site_sp_model, on_site_sp_data; solver = "LSQR")
+fit!(off_site_pp_model, off_site_pp_data; solver = "LSQR")
 
 ```
 

@@ -115,31 +115,31 @@ are placed directly into the supplied matrix `values.`
 
 # Arguments
  - `values::AbstractMatrix`: matrix into which the results should be placed.
- - `basis::AHBasis`: basis to be evaluated.
+ - `basis::AHSubModel`: basis to be evaluated.
  - `state::Vector{States}`: state upon which the `basis` should be evaluated. 
 """
-function predict!(values::AbstractMatrix, basis::T, state::Vector{S}) where {T<:AHBasis, S<:AbstractState}
+function predict!(values::AbstractMatrix, submodel::T, state::Vector{S}) where {T<:AHSubModel, S<:AbstractState}
     # If the model has been fitted then use it to predict the results; otherwise just
     # assume the results are zero.
-    if is_fitted(basis)
+    if is_fitted(submodel)
         # Construct a descriptor representing the supplied state and evaluate the
         # basis on it to predict the associated sub-block.  
-        A = evaluate(basis.basis, ACEConfig(state))
+        A = evaluate(submodel.basis, ACEConfig(state))
         B = _evaluate_real(A)
-        values .= (basis.coefficients' * B) + basis.mean
+        values .= (submodel.coefficients' * B) + submodel.mean
 
         @static if DUAL_BASIS_MODEL
-            if T<: AnisoBasis
-                A = evaluate(basis.basis_i, ACEConfig(reflect.(state)))
+            if T<: AnisoSubModel
+                A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
                 B = _evaluate_real(A)
-                values .= (values + ((basis.coefficients_i' * B) + basis.mean_i)') / 2.0
-            elseif !ison(basis) && (basis.id[1] == basis.id[2]) && (basis.id[3] == basis.id[4])
+                values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+            elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
                 # If the dual basis model is being used then it is assumed that the symmetry
                 # issue has not been resolved thus an additional symmetrisation operation is
                 # required.
-                A = evaluate(basis.basis, ACEConfig(reflect.(state)))
+                A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
                 B = _evaluate_real(A)
-                values .= (values + ((basis.coefficients' * B) + basis.mean)') / 2.0
+                values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
             end
         end
 
@@ -153,15 +153,15 @@ end
 
 """
 """
-function predict(basis::AHBasis, states::Vector{<:AbstractState})
+function predict(submodel::AHSubModel, states::Vector{<:AbstractState})
     # Create a results matrix to hold the predicted values. The shape & type information
     # is extracted from the basis. However, complex types will be converted to their real
     # equivalents as results in ACEhamiltonians are always real. With the current version
     # of ACE this is the the easiest way to reliably identify the shape and float type of
     # the sub-blocks; at least that Julia is happy with.
-    n, m, type = ACE.valtype(basis.basis).parameters[3:5]
+    n, m, type = ACE.valtype(submodel.basis).parameters[3:5]
     values = Matrix{real(type)}(undef, n, m)
-    predict!(values, basis, states)
+    predict!(values, submodel, states)
     return values
 end
 
@@ -171,20 +171,20 @@ Predict the values for a collection of sub-blocks by evaluating the provided bas
 specified states. This is a the batch operable variant of the primary `predict!` method. 
 
 """
-function predict!(values::AbstractArray{<:Any, 3}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
-        @views predict!(values[:, :, i], basis, states[i])
+        @views predict!(values[:, :, i], submodel, states[i])
     end
 end
 
 
 """
 """
-function predict(basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
+function predict(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
     # Construct and fill a matrix with the results from multiple states
-    n, m, type = ACE.valtype(basis.basis).parameters[3:5]
+    n, m, type = ACE.valtype(submodel.basis).parameters[3:5]
     values = Array{real(type), 3}(undef, n, m, length(states))
-    predict!(values, basis, states)
+    predict!(values, submodel, states)
     return values
 end
 
@@ -192,9 +192,9 @@ end
 # Special version of the batch operable `predict!` method that is used when scattering data
 # into a Vector of AbstractMatrix types rather than into a three dimensional tensor. This
 # is implemented to facilitate the scattering of data into collection of sub-view arrays.
-function predict!(values::Vector{<:Any}, basis::AHBasis, states::Vector{<:Vector{<:AbstractState}})
+function predict!(values::Vector{<:Any}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
     for i=1:length(states)
-        @views predict!(values[i], basis, states[i])
+        @views predict!(values[i], submodel, states[i])
     end
 end
 

@@ -3,7 +3,7 @@ module Models
 using ACEhamiltonians, ACE, ACEbase
 import ACEbase: read_dict, write_dict
 using ACEhamiltonians.Parameters: OnSiteParaSet, OffSiteParaSet
-using ACEhamiltonians.Bases: AHBasis, is_fitted
+using ACEhamiltonians.Bases: AHSubModel, is_fitted
 using ACEhamiltonians: DUAL_BASIS_MODEL
 # Once we change the keys of basis_def from Integer to AtomicNumber, we will no 
 # longer need JuLIP here 
@@ -60,8 +60,8 @@ struct Model
         
         # Discuss use of the on/off_site_cache entities
 
-        on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHBasis}()
-        off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHBasis}()
+        on_sites = Dict{NTuple{3, keytype(basis_definition)}, AHSubModel}()
+        off_sites = Dict{NTuple{4, keytype(basis_definition)}, AHSubModel}()
         
         # Caching the basis functions of the functions is faster and allows us to reuse
         # the same basis function for similar interactions.
@@ -89,7 +89,7 @@ struct Model
                         ace_basis = ace_basis_on( # On-site bases
                             ℓ₁, ℓ₂, on_site_parameters[id]...; species = species)
 
-                        on_sites[(zᵢ, n₁, n₂)] = AHBasis(ace_basis, id)
+                        on_sites[(zᵢ, n₁, n₂)] = AHSubModel(ace_basis, id)
                     end
 
                     id = (zᵢ, zⱼ, n₁, n₂)
@@ -100,14 +100,14 @@ struct Model
                     
                     @static if DUAL_BASIS_MODEL
                         if homo_atomic && n₁ == n₂
-                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, id)
                         else
                             ace_basis_i = ace_basis_off(
                                 ℓ₂, ℓ₁, off_site_parameters[(zⱼ, zᵢ, n₂, n₁)]...)
-                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, ace_basis_i, id)
+                            off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, ace_basis_i, id)
                         end
                     else
-                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHBasis(ace_basis, id)
+                        off_sites[(zᵢ, zⱼ, n₁, n₂)] = AHSubModel(ace_basis, id)
                     end     
                 end
             end
@@ -134,7 +134,7 @@ Base.:(==)(x::Model, y::Model) = (
 function ACEbase.write_dict(m::Model)
     # ACE bases are stored as hash values which are checked against the "bases_hashes"
     # dictionary during reading. This avoids saving multiple copies of the same object;
-    # which is common as `AHBasis` objects tend to share basis functions.
+    # which is common as `AHSubModel` objects tend to share basis functions.
 
 
     bases_hashes = Dict{String, Any}()
