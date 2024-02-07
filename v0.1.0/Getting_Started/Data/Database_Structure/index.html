@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Database Structure · ACEhamiltonians.jl Documentation</title><meta name="title" content="Database Structure · ACEhamiltonians.jl Documentation"/><meta property="og:title" content="Database Structure · ACEhamiltonians.jl Documentation"/><meta property="twitter:title" content="Database Structure · ACEhamiltonians.jl Documentation"/><meta name="description" content="Documentation for ACEhamiltonians.jl Documentation."/><meta property="og:description" content="Documentation for ACEhamiltonians.jl Documentation."/><meta property="twitter:description" content="Documentation for ACEhamiltonians.jl Documentation."/><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../search_index.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">ACEhamiltonians.jl Documentation</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../../">Home</a></li><li><a class="tocitem" href="../../Quick_Start/">Getting Started</a></li><li class="is-active"><a class="tocitem" href>Database Structure</a></li><li><span class="tocitem">Models</span><ul><li><a class="tocitem" href="../../Model/Model_Construction/">Model Construction</a></li><li><a class="tocitem" href="../../Model/Model_Fitting/">Model Fitting</a></li><li><a class="tocitem" href="../../Model/Model_Predicting/">Model Predicting</a></li></ul></li><li><span class="tocitem">Bases</span><ul><li><a class="tocitem" href="../../Bases/Basis_Construction/">SubModel Construction</a></li><li><a class="tocitem" href="../../Bases/Basis_Fitting/">SubModel Fitting</a></li><li><a class="tocitem" href="../../Bases/Basis_Predicting/">SubModel Predicting</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Database Structure</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Database Structure</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/ACEsuit/ACEhamiltonians.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/ACEsuit/ACEhamiltonians.jl/blob/main/docs/src/Getting_Started/Data/Database_Structure.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Database-Structure"><a class="docs-heading-anchor" href="#Database-Structure">Database Structure</a><a id="Database-Structure-1"></a><a class="docs-heading-anchor-permalink" href="#Database-Structure" title="Permalink"></a></h1><p>The <code>ACEhamiltonians.IO</code> module contains a series of functions that are intended to aid in the loading of data from HDF5 structured databases. While this module offers read functionally is does not offer any write subroutines as of the time of writing. Furthermore, all loading methods are hard-code to look for the requested data in a specific location relative to top level group of each system.   Thus a all HDF5 databases must strictly adhere to specified file structure specification to be readable.</p><p>A brief outline of the expected HDF5 database structure is provided below. Note that arrays <strong>must</strong> be stored in column major format and names are case sensitive!</p><pre><code class="language-tree hljs">Database
+├─System_1
+│ ├─Structure
+│ │ ├─atomic_numbers:
+│ │ │   &gt; A vector of integers specifying the atomic number of each atom present in the
+│ │ │   &gt; target system. Read by the function `load_atoms`.
+│ │ │
+│ │ ├─positions:
+│ │ │   &gt; A 3×N matrix, were N is the number of atoms present in the system, specifying
+│ │ │   &gt; cartesian coordinates for each atom. Read by the function `load_atoms`.
+│ │ │
+│ │ ├─lattice:
+│ │ │   &gt; A 3×3 matrix specifying the lattice systems lattice vector in column-wise
+│ │ │   &gt; format; i.e. columns loop over vectors. Read by the function `load_atoms`
+│ │ │   &gt; if and when present.
+│ │ │
+│ │ └─pbc:
+│ │     &gt; A boolean, or a vector of booleans, indicating if, or along which dimensions,
+│ │     &gt; periodic conditions are enforced. This is only read when the lattice is given. 
+│ │     &gt; This defaults to true for non-molecular/cluster cases. Read by `load_atoms`.
+│ │
+│ ├─Info
+│ │ ├─Basis:
+│ │ │   &gt; This group contains one dataset for each species that specifies the 
+│ │ │   &gt; azimuthal quantum numbers of each shell present on that species. Read
+│ │ │   &gt; by the `load_basis_set_definition` method.
+│ │ │
+│ │ │
+│ │ ├─Translations:
+│ │ │   &gt; A 3×N matrix specifying the cell translation vectors associated with the real 
+│ │ │   &gt; space Hamiltonian &amp; overlap matrices. Only present when Hamiltonian &amp; overlap
+│ │ │   &gt; matrices are given in their M×M×N real from. Read by `load_cell_translations`.
+│ │ │   &gt; Should be integers specifying the cell indices, rather than cartesian vectors.
+│ │ │   &gt; The origin cell, [0, 0, 0], must always be first!
+│ │ │ 
+│ │ └─k-points:
+│ │     &gt; A 4×N matrix where N is the number of k-points. The first three rows specify
+│ │     &gt; k-points themselves with the final row specifying their associated weights.
+│ │     &gt; Read by `load_k_points_and_weights`. Only present for multi-k-point calculations. 
+│ │
+│ └─Data
+│   ├─H:
+│   │   &gt; The Hamiltonian. Either an M×M matrix or an M×M×N real-space tensor; where M is 
+│   │   &gt; is the number of orbitals and N then number of primitive cell equivalents. Read
+│   │   &gt; in by the `load_hamiltonian` function.
+│   │
+│   ├─S:
+│   │   &gt; The Overlap matrix; identical in format to the Hamiltonian matrix. This is read
+│   │   &gt; in by the `load_overlap` function.
+│   │
+│   ├─total_energy:
+│   │   &gt; A single float value specifying the total system energy.
+│   │
+│   ├─fermi_level:
+│   │   &gt; A single float value specifying the total fermi level.
+│   │
+│   ├─forces:
+│   │   &gt; A 3×N matrix specifying the force vectors on each atom.
+│   │
+│   ├─H_gamma:
+│   │   &gt; This can be used to store the gamma point only Hamiltonian matrix when &#39;H&#39; is
+│   │   &gt; used to store the real space matrix. This is mostly for debugging &amp; testing.
+│   │
+│   └─S_gamma:
+|       &gt; Overlap equivalent of `H_gamma`
+│
+├─System_2
+│ ├─Structure
+│ │ └─ ...
+│ │
+│ ├─Info
+│ │ └─ ...
+│ │
+│ └─Data
+│   └─ ...
+...
+└─System_n
+  └─ ...</code></pre><p>When calling the various load methods within <code>DatabaseIO</code> the <code>src</code> Group argument must always point to the target systems top level Group. In the example structure tree given above these would be &#39;System<em>1&#39;, &#39;System</em>2&#39;, and &#39;System_n&#39;. Datasets and groups should provide information about what units the data they contain are given in. This can be done through the of the HDF5 metadata <code>attributes</code>. However, units are not yet fully supported. </p><p>An example is provided below demonstrating how one may load data from a HDF5 database.</p><pre><code class="language-julia hljs"># Path to the database from which data is to be loaded
+database_path = &quot;/home/ajmhpc/Documents/Work/Projects/ACEtb/Data/Si/Construction/example_data.h5&quot;
+# Path, relative to the top level, to the group from which data is to be extracted
+target_system = &quot;0224&quot;
+
+# Open the HDF5 database file 
+H, S, atoms, images = h5open(database_path) do database
+    # Select the target group
+    target = database[target_system]
+    # Load the Hamiltonian and overlap matrices followed by the atoms object
+    # and the cell translation vectors
+    (load_hamiltonian(target), load_overlap(target), 
+    load_atoms(target; recentre=true), load_cell_translations(target))
+end</code></pre><p>A python script (<code>aims_database_builder.py</code>) is provided in the tools directory which demonstrates how such a database may be constructed from the output of an FHI-aims calculation.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../Quick_Start/">« Getting Started</a><a class="docs-footer-nextpage" href="../../Model/Model_Construction/">Model Construction »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Wednesday 7 February 2024 16:40">Wednesday 7 February 2024</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

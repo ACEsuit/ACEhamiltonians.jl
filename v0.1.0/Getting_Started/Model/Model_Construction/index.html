@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Model Construction · ACEhamiltonians.jl Documentation</title><meta name="title" content="Model Construction · ACEhamiltonians.jl Documentation"/><meta property="og:title" content="Model Construction · ACEhamiltonians.jl Documentation"/><meta property="twitter:title" content="Model Construction · ACEhamiltonians.jl Documentation"/><meta name="description" content="Documentation for ACEhamiltonians.jl Documentation."/><meta property="og:description" content="Documentation for ACEhamiltonians.jl Documentation."/><meta property="twitter:description" content="Documentation for ACEhamiltonians.jl Documentation."/><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../search_index.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">ACEhamiltonians.jl Documentation</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../../">Home</a></li><li><a class="tocitem" href="../../Quick_Start/">Getting Started</a></li><li><a class="tocitem" href="../../Data/Database_Structure/">Database Structure</a></li><li><span class="tocitem">Models</span><ul><li class="is-active"><a class="tocitem" href>Model Construction</a><ul class="internal"><li><a class="tocitem" href="#Parameters"><span>Parameters</span></a></li><li class="toplevel"><a class="tocitem" href="#TODO"><span>TODO</span></a></li></ul></li><li><a class="tocitem" href="../Model_Fitting/">Model Fitting</a></li><li><a class="tocitem" href="../Model_Predicting/">Model Predicting</a></li></ul></li><li><span class="tocitem">Bases</span><ul><li><a class="tocitem" href="../../Bases/Basis_Construction/">SubModel Construction</a></li><li><a class="tocitem" href="../../Bases/Basis_Fitting/">SubModel Fitting</a></li><li><a class="tocitem" href="../../Bases/Basis_Predicting/">SubModel Predicting</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Models</a></li><li class="is-active"><a href>Model Construction</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Model Construction</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/ACEsuit/ACEhamiltonians.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/ACEsuit/ACEhamiltonians.jl/blob/main/docs/src/Getting_Started/Model/Model_Construction.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Model-Construction"><a class="docs-heading-anchor" href="#Model-Construction">Model Construction</a><a id="Model-Construction-1"></a><a class="docs-heading-anchor-permalink" href="#Model-Construction" title="Permalink"></a></h1><p>An <code>ACEhamiltonians</code> model can be created, as shown below, by constructing and passing the required parameters to the model factory.</p><pre><code class="language-julia hljs"># 1) Provide a label for the model (this should be H or S)
+model_type = &quot;H&quot;
+
+# 2) Definition of a s₃p₃d₁ silicon basis
+basis_definition = BasisDef{Int64}(14=&gt;[0, 0, 0, 1, 1, 1, 2])
+
+# 3) On-site parameter deceleration
+on_site_parameters = OnSiteParaSet(
+    # Maximum correlation order
+    GlobalParams(2),
+    # Maximum polynomial degree
+    GlobalParams(6),
+    # Environmental cutoff radius
+    GlobalParams(10.),
+    # Scaling factor &quot;r₀&quot;
+    GlobalParams(2.5)
+)
+
+# 4) Off-site parameter deceleration
+off_site_parameters = OffSiteParaSet(
+    # Maximum correlation order
+    GlobalParams(1),
+    # Maximum polynomial degree
+    GlobalParams(6),
+    # Bond cutoff radius
+    GlobalParams(10.),
+    # Environmental cutoff radius
+    GlobalParams(5.),
+)
+
+# 5) Initialise the model
+model = Model(basis_definition, on_site_parameters, off_site_parameters, model_type)</code></pre><p>The model factory takes four arguments, namely;</p><ul><li><code>model_type</code>:  a string used to inform the auto-fitting code of what data to load and use during the fitting operation. This is commonly set to either <code>&quot;H&quot;</code> or <code>&quot;S&quot;</code> depending on whether one intends to fit the model to Hamiltonian or overlap matrices.</li><li><code>basis_definition</code>: a dictionary specifying the azimuthal quantum numbers, ℓ, of each shell present on each of the species to be modelled. The dictionary is keyed by atomic numbers and valued by vectors of ℓ i.e. <code>Dict{atomic_number, [ℓ₁, ..., ℓᵢ]}</code>.  A minimal basis set for hydrocarbon systems would be <code>BasisDef{Int64}(1=&gt;[0], 6=&gt;[0, 0, 1])</code>. This declares hydrogen atoms as having only a single s-shell and carbon atoms as having two s-shells and one p-shell. In reality a regular <code>julia</code> dictionary can be used so long as it has the correct structure.</li><li><code>on_site_parameters</code>: is an <code>OnSiteParaSet</code> structure, which as name suggests, specifies all of the parameters required to construct the on-site bases. Specifically the correlation order, maximum polynomial degree, environmental cutoff radius, and the scaling parameter. Further information on the <code>OnSiteParaSet</code> and the <code>Params</code> structures used in its construction can be found <a href="#On-site">here</a> and <a href="#Declarations">here</a> respectively.</li><li><code>off_site_parameters</code>: is an <a href="#Off-site"><code>OffSiteParaSet</code></a> structure which similarly specifies the parameters for constructing the off-site bases. This provides the correlation order, maximum polynomial degree, bond cutoff distance, and environmental cutoff radius. Again, <a href="#Declarations"><code>Params</code></a> structures are used in the construction of these instances.</li></ul><p>Models can be saved to and loaded from JSON files using the commands <code>save_json(&quot;file_name.json&quot;, write_dict(model))</code> and <code>read_dict(load_json(&quot;file_name.json&quot;))</code> respectively. Although these files are stable and transportable they are also incredibly slow to work with. As such it is strongly advised to use the <a href="https://docs.julialang.org/en/v1/stdlib/Serialization/"><code>Serialization</code></a> module to load and save models timidly manner when working locally. However, such binary files can only be reliably loaded on the system that was used to create them.</p><h2 id="Parameters"><a class="docs-heading-anchor" href="#Parameters">Parameters</a><a id="Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Parameters" title="Permalink"></a></h2><h3 id="Declarations"><a class="docs-heading-anchor" href="#Declarations">Declarations</a><a id="Declarations-1"></a><a class="docs-heading-anchor-permalink" href="#Declarations" title="Permalink"></a></h3><p>Prior to constructing a model one must specify the parameters to be used in its construction. This is done primarily through the use of dictionary-like <code>Params</code> structures, which are collected into <code>ParaSet</code> instances as required. These are used exclusively to provide the parameters needed when constructing models within the <code>ACEhamiltonians</code> framework, or more specifically their underlying bases. There are currently four <code>Params</code> type structures, namely <code>GlobalParams</code>, <code>AtomicParams</code>, <code>AzimuthalParams</code>, and <code>ShellParams</code>, each offering varying levels of specificity.</p><p>Each parameter, correlation order, maximum polynomial degree, environmental cutoff distance, etc. may be specified using any of the available <code>Params</code> based structures. However, i) each <code>Params</code> instance may represent one, and only one, parameter, and ii) on-site and off-site parameters must not be mixed.</p><h4 id="Global"><a class="docs-heading-anchor" href="#Global">Global</a><a id="Global-1"></a><a class="docs-heading-anchor-permalink" href="#Global" title="Permalink"></a></h4><p>A <code>GlobalParams</code> instance is used to indicate that a single value should be used for all relevant interactions. Querying such instances will always return the value the specified constant value, irrespective of the key, so long as the query is valid.</p><pre><code class="language-julia hljs">julia&gt; p = GlobalParams(2)
+GlobalParams{Int64} with 1 entries:
+  All =&gt; 2
+
+julia&gt; ν[1] # &lt;- query parameter associated with H
+2
+julia&gt; ν[(1, 6)] # &lt;- query parameter associated with H-C interaction
+2
+julia&gt; ν[(1, 6, 1, 2)] # &lt;- interaction between 1ˢᵗ shell on H and 2ⁿᵈ shell on C
+2</code></pre><p>As can be seen, the specified value, <code>2</code>, will always be returned so long as the query is valid. These instances are useful when specifying parameters that are constant across all bases, such as the correlation order, as it avoids having to repeatedly specify it for each and every interaction.</p><h4 id="Species-Resolved"><a class="docs-heading-anchor" href="#Species-Resolved">Species Resolved</a><a id="Species-Resolved-1"></a><a class="docs-heading-anchor-permalink" href="#Species-Resolved" title="Permalink"></a></h4><p>These instances allow for parameters to be specified on a species by species basis. This equates to one parameter per species for on-site interactions and one parameter per species pair for off-site interactions. This will then result in all associated bases associated with a specific species/species-pair all using a common value, like so: </p><pre><code class="language-julia hljs">julia&gt; p_on  = AtomicParams(1=&gt;9., 6=&gt;11.)
+AtomicParams{Float64} with 2 entries:
+  6 =&gt; 11.0
+  1 =&gt; 9.0
+
+julia&gt; p_off = AtomicParams((1, 1)=&gt;9., (1, 6)=&gt;10., (6, 6)=&gt;11.)
+AtomicParams{Float64} with 3 entries:
+  (6, 6) =&gt; 11.0
+  (1, 6) =&gt; 10.0
+  (1, 1) =&gt; 9.0
+
+# The value 11. is returned for all on-site C interaction queries 
+julia&gt; p_on[(6, 1, 1)] == p_on[(6, 1, 2)] == p_on[(6, 2, 2)] == 11.
+true
+# The value 10. is returned for all off-site H-C interaction queries 
+julia&gt; p_off[(1, 6, 1, 1)] == p_off[(6, 1, 2, 1)] == p_off[(6, 1, 2, 2)] == 10.
+true</code></pre><p>These instances are instantiated in a similar manner to dictionaries and offer a finer degree of control over the parameters than <code>GlobalParams</code> structures but are not as granular as their <code>AzimuthalParams</code> counterparts.</p><p>It is important to note that atom pair keys are permutationally invariant, i.e. the keys <code>(1, 6)</code> and <code>(6, 1)</code> are redundant and will overwrite one another like so:</p><pre><code class="language-julia hljs">julia&gt; test = AtomicParams((1, 6)=&gt;10., (6, 1)=&gt;1000.)
+AtomicParams{Float64} with 1 entries:
+  (1, 6) =&gt; 1000.0
+
+julia&gt; test[(1, 6)] == test[(6, 1)] == 1000.0
+true</code></pre><p>Finally atomic numbers will be sorted so that the lowest atomic number comes first. However, this is only a superficial visual change and queries will still be invariant to permutation.</p><h4 id="Azimuthal-Resolved"><a class="docs-heading-anchor" href="#Azimuthal-Resolved">Azimuthal Resolved</a><a id="Azimuthal-Resolved-1"></a><a class="docs-heading-anchor-permalink" href="#Azimuthal-Resolved" title="Permalink"></a></h4><p>Parameters specified for each azimuthal quantum number of each species. This allows for a finer degree of control and is a logical extension of the <code>AtomicParams</code> structure. It is important to note that <code>AzimuthalParams</code> instances must be supplied with a basis definition. This allows it to work out the azimuthal quantum number associated with each shell during lookup.</p><pre><code class="language-julia hljs"># Basis definition describing a H_1s C_2s1p basis set
+julia&gt; basis_def = Dict(1=&gt;[0], 6=&gt;[0, 0, 1])
+julia&gt; p_on = AzimuthalParams(
+    basis_def, (1, 0, 0)=&gt;1, (6, 0, 0)=&gt;2, (6, 0, 1)=&gt;3, (6, 1, 1)=&gt;4)
+AzimuthalParams{Int64} with 4 entries:
+  (6, 0, 0) =&gt; 2
+  (1, 0, 0) =&gt; 1
+  (6, 1, 1) =&gt; 4
+  (6, 0, 1) =&gt; 3
+
+julia&gt; p_off = AzimuthalParams(
+    basis_def, (1, 1, 0, 0)=&gt;1, (6, 6, 0, 0)=&gt;2, (6, 6, 0, 1)=&gt;3, (6, 6, 1, 1)=&gt;4,
+    (1, 6, 0, 0)=&gt;6, (1, 6, 0, 1)=&gt;6)
+
+AzimuthalParams{Int64} with 6 entries:
+    (1, 6, 0, 1) =&gt; 6
+    (6, 6, 0, 1) =&gt; 3
+    (1, 6, 0, 0) =&gt; 6
+    (1, 1, 0, 0) =&gt; 1
+    (6, 6, 1, 1) =&gt; 4
+    (6, 6, 0, 0) =&gt; 2
+
+# on-site interactions involving shells 1 % 2 will return 2 as they&#39;re both s-shells.
+julia&gt; p_on[(6, 1, 1)] == p_on[(6, 1, 2)] == p_on[(6, 2, 2)] == 2
+true</code></pre><p>While keys are agnostic to the ordering of the azimuthal numbers; the first atomic number <code>z₁</code> will always correspond to the first azimuthal number <code>ℓ₁</code>, i.e.:</p><ul><li><code>(z₁, ℓ₁, ℓ₂) == (z₁, ℓ₂, ℓ₁)</code></li><li><code>(z₁, z₂, ℓ₁, ℓ₂) == (z₂, z₁, ℓ₂, ℓ₁)</code></li><li><code>(z₁, z₂, ℓ₁, ℓ₂) ≠ (z₁, z₂ ℓ₂, ℓ₁)</code></li><li><code>(z₁, z₂, ℓ₁, ℓ₂) ≠ (z₂, z₁ ℓ₁, ℓ₂)</code></li></ul><h4 id="Shell-Resolved"><a class="docs-heading-anchor" href="#Shell-Resolved">Shell Resolved</a><a id="Shell-Resolved-1"></a><a class="docs-heading-anchor-permalink" href="#Shell-Resolved" title="Permalink"></a></h4><p><code>ShellParams</code> structures allow for individual values to be provided for each and everyunique interaction. While this proved the finest degree of control it can quickly become untenable for systems with large basis sets or multiple species due the shear number of variable required.</p><pre><code class="language-julia hljs"># For H1s C2s1p basis set.
+julia&gt; p_on = ShellParams(
+    (1, 1, 1)=&gt;1, (6, 1, 1)=&gt;2, (6, 1, 2)=&gt;3, (6, 1, 3)=&gt;4,
+    (6, 2, 2)=&gt;5, (6, 2, 3)=&gt;6, (6, 3, 3)=&gt;7)
+
+ShellParams{Int64} with 7 entries:
+  (6, 3, 3) =&gt; 7
+  (1, 1, 1) =&gt; 1
+  (6, 1, 3) =&gt; 4
+  (6, 2, 2) =&gt; 5
+  (6, 1, 1) =&gt; 2
+  (6, 1, 2) =&gt; 3
+  (6, 2, 3) =&gt; 6
+
+julia&gt; p_off = ShellParams(
+    (1, 1, 1, 1)=&gt;1, (1, 6, 1, 1)=&gt;2, (1, 6, 1, 2)=&gt;3, (1, 6, 1, 3)=&gt;4,
+    (6, 6, 1, 1)=&gt;5, (6, 6, 1, 2)=&gt;6, (6, 6, 1, 3)=&gt;74, (6, 6, 2, 2)=&gt;8,
+    (6, 6, 2, 3)=&gt;9, (6, 6, 3, 3)=&gt;10)
+
+ShellParams{Int64} with 10 entries:
+  (6, 6, 2, 2) =&gt; 8
+  (6, 6, 3, 3) =&gt; 10
+  (6, 6, 1, 3) =&gt; 74
+  (1, 1, 1, 1) =&gt; 1
+  (1, 6, 1, 2) =&gt; 3
+  (1, 6, 1, 1) =&gt; 2
+  (1, 6, 1, 3) =&gt; 4
+  (6, 6, 1, 1) =&gt; 5
+  (6, 6, 1, 2) =&gt; 6
+  (6, 6, 2, 3) =&gt; 9
+</code></pre><h3 id="Collections"><a class="docs-heading-anchor" href="#Collections">Collections</a><a id="Collections-1"></a><a class="docs-heading-anchor-permalink" href="#Collections" title="Permalink"></a></h3><p>All of the parameter definitions required to specify a given interaction are collected into <code>ParaSet</code> structures. Once instantiated, the <code>OnSiteParaSet</code> and <code>OffSiteParaSet</code> structures should contain all parameters required to construct all of the desired on/off-site bases.</p><h4 id="On-site"><a class="docs-heading-anchor" href="#On-site">On-site</a><a id="On-site-1"></a><a class="docs-heading-anchor-permalink" href="#On-site" title="Permalink"></a></h4><p>The <code>OnSiteParaSet</code> structure holds all the <code>Params</code> instances required to construct the on-site bases. Such structures are comprised of four parameter fields, each of which is discussed in turn below:</p><ul><li><code>ν::Params{K, Int}</code>: correlation order, for on-site interactions the body order is one more than the correlation order.   </li><li><code>deg::Params{K, Int}</code>: maximum polynomial degree.</li><li><code>e_cut_out::Parameters{K, Float}</code>: environment&#39;s external cutoff distance, only atoms within the specified radius will contribute to the local environment. </li><li><code>r0::Parameters{K, Float}</code>: scaling parameter (typically set to the nearest neighbour distances).</li></ul><p>An example demonstrating the instantiateation of a simple <code>OffSiteParaSet</code> structure is now provided. </p><pre><code class="language-julia hljs"># On-site parameter deceleration
+on_site_parameters = OnSiteParaSet(
+    # Maximum correlation order, set to 2 for all on-site bases
+    GlobalParams(2),
+    # Maximum polynomial degree, set to 6 for all on-site bases
+    GlobalParams(6),
+    # Environmental cutoff radius, set to 10.0 Å for all on-site bases
+    GlobalParams(10.),
+    # Scaling factor &quot;r₀&quot;, set to 2.5 Å for all on-site bases
+    GlobalParams(2.5)
+)</code></pre><h4 id="Off-site"><a class="docs-heading-anchor" href="#Off-site">Off-site</a><a id="Off-site-1"></a><a class="docs-heading-anchor-permalink" href="#Off-site" title="Permalink"></a></h4><p>Likewise, the <code>OffSiteParaSet</code> structures store all parameters required to construct all of the off-site bases.</p><ul><li><code>ν::Params{K, Int}</code>: correlation order, for off-site interactions the body order is two more than the correlation order.   </li><li><code>deg::Params{K, Int}</code>: maximum polynomial degree.</li><li><code>b_cut::Params{K, Float}</code>: cutoff distance for off-site interactions, only bonding interactions between atoms separated by a distance smaller or equal to this will be considered. </li><li><code>e_cut_out::Params{K, Float}</code>: environment&#39;s external cutoff distance, this is also used as the radius for the cylindrical bond envelope.</li></ul><p>The <code>OffSiteParaSet</code> can be instantiateated in a similar manner to their on-site counterparts like so:</p><pre><code class="language-julia hljs"># Off-site parameter deceleration
+off_site_parameters = OffSiteParaSet(
+    # Maximum correlation order, set to 1 for all off-site bases
+    GlobalParams(1),
+    # Maximum polynomial degree, set to 6 for all off-site bases
+    GlobalParams(6),
+    # Bond cutoff radius, set to 10.0 Å for all off-site interactions
+    GlobalParams(10.),
+    # Environmental cutoff radius, set to 5.0 Å for all off-site interactions
+    GlobalParams(5.),
+)</code></pre><h1 id="TODO"><a class="docs-heading-anchor" href="#TODO">TODO</a><a id="TODO-1"></a><a class="docs-heading-anchor-permalink" href="#TODO" title="Permalink"></a></h1><ul><li>Add images showing the on-site and off-site environments.</li><li>Discuss the individual parameters in more detail.</li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../Data/Database_Structure/">« Database Structure</a><a class="docs-footer-nextpage" href="../Model_Fitting/">Model Fitting »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Wednesday 7 February 2024 16:40">Wednesday 7 February 2024</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
