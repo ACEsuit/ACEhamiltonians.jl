@@ -6,12 +6,11 @@ using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
 using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
-using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
+using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma, load_density_matrix_gamma
 using ACEatoms:AtomicNumber
 using LowRankApprox: pqrfact
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
-
 
 export fit!
 
@@ -259,8 +258,8 @@ function fit!(
     target = isnothing(target) ? model.label : target
 
     get_matrix = Dict(  # Select an appropriate function to load the target matrix
-        "H"=>load_hamiltonian, "S"=>load_overlap,
-        "Hg"=>load_hamiltonian_gamma, "Sg"=>load_overlap_gamma)[target]
+        "H"=>load_hamiltonian, "S"=>load_overlap, "dm"=>load_density_matrix,
+        "Hg"=>load_hamiltonian_gamma, "Sg"=>load_overlap_gamma, "dmg"=>load_density_matrix_gamma)[target]
 
     fitting_data = Dict{Any, DataSet}()
 
