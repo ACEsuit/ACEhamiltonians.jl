@@ -191,7 +191,7 @@ function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states:
     @sync begin
         for i=1:length(states)
             @async begin
-                fetch(@spawn @views predict!(values[:, :, i], submodel, states[i]))
+                @spawn @views predict!(values[:, :, i], submodel, states[i])
             end
         end
     end
@@ -214,7 +214,7 @@ function predict(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}}
     # Construct and fill a matrix with the results from multiple states
     n, m, type = ACE.valtype(submodel.basis).parameters[3:5]
     # values = Array{real(type), 3}(undef, n, m, length(states))
-    A = SharedArray{real(type), 3}(n, m, length(states))
+    values = SharedArray{real(type), 3}(n, m, length(states))
     predict!(values, submodel, states)
     return values
 end
