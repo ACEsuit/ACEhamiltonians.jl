@@ -172,11 +172,12 @@ function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) w
     np = length(procs(Avalr))
     nstates = length(data.states)
     nstates_pp = ceil(Int, nstates/np)
+    np = ceil(Int, nstates/nstates_pp)
     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
     push!(idx_ends, nstates)
     @sync begin
-        for (i, id) in enumerate(procs(Avalr))
+        for (i, id) in enumerate(procs(Avalr)[begin:np])
             @async begin
                 @spawnat id begin
                     cfg = ACEConfig.(data.states[idx_begins[i]:idx_ends[i]])
@@ -184,7 +185,7 @@ function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) w
                     Avalr_ele = _evaluate_real.(Aval_ele)
                     Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
                     @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
-                    Avalr[idx_begins[i]: idx_ends[i], :, :, :] = M
+                    Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
                 end
             end
         end
