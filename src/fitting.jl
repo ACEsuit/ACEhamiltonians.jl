@@ -178,16 +178,16 @@ function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) w
     push!(idx_ends, nstates)
     @sync begin
         for (i, id) in enumerate(procs(Avalr)[begin:np])
-            @async begin
-                @spawnat id begin
-                    cfg = ACEConfig.(data.states[idx_begins[i]:idx_ends[i]])
-                    Aval_ele = evaluate.(Ref(basis), cfg)
-                    Avalr_ele = _evaluate_real.(Aval_ele)
-                    Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
-                    @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
-                    Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
-                end
+            # @async begin
+            @spawnat id begin
+                cfg = ACEConfig.(data.states[idx_begins[i]:idx_ends[i]])
+                Aval_ele = evaluate.(Ref(basis), cfg)
+                Avalr_ele = _evaluate_real.(Aval_ele)
+                Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
+                @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
+                Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
             end
+            # end
         end
     end
     @cast A[i,j][k,l] := Avalr[i,j,k,l]

@@ -153,7 +153,90 @@ end
 
 #########for parallelization
 
-function get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}})
+# function get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}})
+#     # This will be rewritten once the other code has been refactored.
+
+#     # Should `A` not be constructed using `acquire_B!`?
+
+#     n₁, n₂, type = ACE.valtype(basis).parameters[3:5]
+#     # Currently the code desires "A" to be an X×Y matrix of Nᵢ×Nⱼ matrices, where X is
+#     # the number of sub-block samples, Y is equal to `size(bos.basis.A2Bmap)[1]`, and
+#     # Nᵢ×Nⱼ is the sub-block shape; i.e. 3×3 for pp interactions. This may be refactored
+#     # at a later data if this layout is not found to be strictly necessary.
+#     n₃ = length(states)
+
+#     Avalr = SharedArray{real(type), 4}(n₃, length(basis), n₁, n₂)
+#     np = length(procs(Avalr))
+#     nstates = length(states)
+#     nstates_pp = ceil(Int, nstates/np)
+#     np = ceil(Int, nstates/nstates_pp)
+#     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+#     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+#     push!(idx_ends, nstates)
+#     @sync begin
+#         for (i, id) in enumerate(procs(Avalr)[begin:np])
+#             @async begin
+#                 @spawnat id begin
+#                     cfg = ACEConfig.(states[idx_begins[i]:idx_ends[i]])
+#                     Aval_ele = evaluate.(Ref(basis), cfg)
+#                     Avalr_ele = _evaluate_real.(Aval_ele)
+#                     Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
+#                     @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
+#                     Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
+#                 end
+#             end
+#         end
+#     end
+#     @cast A[i,j][k,l] := Avalr[i,j,k,l]
+
+#    return A
+
+# end
+
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::SubArray{<:Any})
+#     return coefficients' * B + mean
+# end
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Matrix{<:Any})
+#     @cast B_broadcast[i][j] := B[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+
+
+function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::SubArray{<:Any})
+    return coefficients' * B + mean
+end
+
+function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Vector{Matrix{Float64}})
+    return coefficients' * B + mean
+end
+
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4}, type::String="sub")
+#     @cast B_sub[i,j][k,l] := B[i,j,k,l] 
+#     @cast B_broadcast[i][j] := B_sub[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4}, type::String="sub")
+#     @cast B_sub[i,j][k,l] := B[i,j,k,l] 
+#     @cast B_broadcast[i][j] := B_sub[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+
+
+function predict_single(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}}, coefficients::Vector{Float64}, mean::Matrix{Float64})
+# function predict_single(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+    
+    #get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}})
+    # basis = submodel.basis
+
     # This will be rewritten once the other code has been refactored.
 
     # Should `A` not be constructed using `acquire_B!`?
@@ -165,8 +248,8 @@ function get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:Abstra
     # at a later data if this layout is not found to be strictly necessary.
     n₃ = length(states)
 
-    Avalr = SharedArray{real(type), 4}(n₃, length(basis), n₁, n₂)
-    np = length(procs(Avalr))
+    values_sub = SharedArray{real(type), 3}(n₁, n₂, n₃)
+    np = length(procs(values_sub))
     nstates = length(states)
     nstates_pp = ceil(Int, nstates/np)
     np = ceil(Int, nstates/nstates_pp)
@@ -174,35 +257,53 @@ function get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:Abstra
     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
     push!(idx_ends, nstates)
     @sync begin
-        for (i, id) in enumerate(procs(Avalr)[begin:np])
-            @async begin
-                @spawnat id begin
-                    cfg = ACEConfig.(states[idx_begins[i]:idx_ends[i]])
-                    Aval_ele = evaluate.(Ref(basis), cfg)
-                    Avalr_ele = _evaluate_real.(Aval_ele)
-                    Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
-                    @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
-                    Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
-                end
+        for (i, id) in enumerate(procs(values_sub)[begin:np])
+            # @async begin
+            @spawnat id begin
+                cfg = ACEConfig.(states[idx_begins[i]:idx_ends[i]])
+                Aval_ele = evaluate.(Ref(basis), cfg)
+                Avalr_ele = _evaluate_real.(Aval_ele)
+                Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
+                result = infer.(Ref(coefficients), Ref(mean), collect(eachrow(Avalr_ele)))
+                values_sub[:, :, idx_begins[i]: idx_ends[i]] .= cat(result..., dims=3)
+                # @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
+                # Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
             end
+            # end
         end
     end
-    @cast A[i,j][k,l] := Avalr[i,j,k,l]
+    # @cast A[i,j][k,l] := Avalr[i,j,k,l]
 
-   return A
+   return values_sub #A
 
 end
 
 
-function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::SubArray{<:Any})
-    return coefficients' * B + mean
-end
 
-function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Matrix{<:Any})
-    @cast B_broadcast[i][j] := B[i,j]
-    result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
-    return result
-end
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4})
+#     np = length(workers())
+#     nstates = size(B, 1)
+#     nstates_pp = ceil(Int, nstates/np)
+#     np = ceil(Int, nstates/nstates_pp)
+#     worker_id = workers()
+#     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+#     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+#     push!(idx_ends, nstates)
+#     result = []
+#     @sync begin
+#         for i in 1:np
+#             id = worker_id[i]
+#             B_sub = @view B[idx_begins[i]:idx_ends[i],:,:,:]
+#             push!(result, @spawnat id infer(coefficients, mean, B_sub, "sub"))
+#         end
+#     end    
+#     # result = fetch.(result)
+#     result = vcat(result...)
+#     result = cat(result..., dims=3)
+#     return result
+# end
+
+
 
 function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
     # If the model has been fitted then use it to predict the results; otherwise just
@@ -212,11 +313,12 @@ function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states:
         # basis on it to predict the associated sub-block.  
         # A = evaluate(submodel.basis, ACEConfig(state))
         # B = _evaluate_real(A)
-        B_batch = get_discriptors(submodel.basis, states)
-        # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
-        # means_expanded = fill(submodel.mean, size(B_batch, 1))
-        # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
-        values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+        # B_batch = get_discriptors(submodel.basis, states)
+        # # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+        # # means_expanded = fill(submodel.mean, size(B_batch, 1))
+        # # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+        # values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+        values .= predict_single(submodel.basis, states, submodel.coefficients, submodel.mean)
         # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
         # values = (submodel.coefficients' * B) + submodel.mean
 
@@ -224,11 +326,13 @@ function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states:
             if typeof(submodel) <: AnisoSubModel
                 # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
                 # B = _evaluate_real(A)
-                B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
-                # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
-                # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
-                #             i in 1: size(B_batch,1)]..., dims=3))/2.0
-                values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+                # B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+                # # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+                # # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+                # #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+                # values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+                values .= (values + permutedims(predict_single(submodel.basis_i, [reflect.(state) for state in states],
+                                                                submodel.coefficients_i, submodel.mean_i), (2,1,3))) / 2.0
 
             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
                 # If the dual basis model is being used then it is assumed that the symmetry
@@ -236,11 +340,13 @@ function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states:
                 # required.
                 # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
                 # B = _evaluate_real(A)
-                B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
-                # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
-                # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
-                #             i in 1: size(B_batch,1)]..., dims=3))/2.0
-                values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+                # B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+                # # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+                # # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+                # #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+                # values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+                values .= (values + permutedims(predict_single(submodel.basis, [reflect.(state) for state in states],
+                                                                submodel.coefficients, submodel.mean), (2,1,3))) / 2.0
             end
         end
 
@@ -248,6 +354,101 @@ function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states:
         fill!(values, 0.0)
     end
 end
+
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     # If the model has been fitted then use it to predict the results; otherwise just
+#     # assume the results are zero.
+#     if is_fitted(submodel)
+#         # Construct a descriptor representing the supplied state and evaluate the
+#         # basis on it to predict the associated sub-block.  
+#         # A = evaluate(submodel.basis, ACEConfig(state))
+#         # B = _evaluate_real(A)
+#         B_batch = get_discriptors(submodel.basis, states)
+#         # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+#         # means_expanded = fill(submodel.mean, size(B_batch, 1))
+#         # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+#         values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+#         # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
+#         # values = (submodel.coefficients' * B) + submodel.mean
+
+#         @static if DUAL_BASIS_MODEL
+#             if typeof(submodel) <: AnisoSubModel
+#                 # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+
+#             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+#                 # If the dual basis model is being used then it is assumed that the symmetry
+#                 # issue has not been resolved thus an additional symmetrisation operation is
+#                 # required.
+#                 # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+#             end
+#         end
+
+#     else
+#         fill!(values, 0.0)
+#     end
+# end
+
+
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     # If the model has been fitted then use it to predict the results; otherwise just
+#     # assume the results are zero.
+#     if is_fitted(submodel)
+#         # Construct a descriptor representing the supplied state and evaluate the
+#         # basis on it to predict the associated sub-block.  
+#         # A = evaluate(submodel.basis, ACEConfig(state))
+#         # B = _evaluate_real(A)
+#         B_batch = get_discriptors(submodel.basis, states)
+#         # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+#         # means_expanded = fill(submodel.mean, size(B_batch, 1))
+#         # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+#         values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+#         # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
+#         # values = (submodel.coefficients' * B) + submodel.mean
+
+#         @static if DUAL_BASIS_MODEL
+#             if typeof(submodel) <: AnisoSubModel
+#                 # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+
+#             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+#                 # If the dual basis model is being used then it is assumed that the symmetry
+#                 # issue has not been resolved thus an additional symmetrisation operation is
+#                 # required.
+#                 # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+#             end
+#         end
+
+#     else
+#         fill!(values, 0.0)
+#     end
+# end
 
 
 
