@@ -663,22 +663,45 @@ function _predict(model, atoms, cell_indices)
                 off_blockᵢ = filter_upper_idxs(off_blockᵢ)
             end
 
-            off_site_states = _get_states( # Build states for the off-site atom-blocks
-                off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+
+            if size(off_blockᵢ, 2) != 0 
+
+                off_site_states = _get_states( # Build states for the off-site atom-blocks
+                    off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+                
+                # Don't try to compute off-site interactions if none exist
+                if length(off_site_states) > 0
+                    let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+                        set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+                            matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+
+                        
+                        _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+                            matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
+                end
+
+            end
             
-            # Don't try to compute off-site interactions if none exist
-            if length(off_site_states) > 0
-                let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
-                    set_sub_blocks!( # Assign off-site sub-blocks to the matrix
-                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+
+            # off_site_states = _get_states( # Build states for the off-site atom-blocks
+            #     off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+            
+            # # Don't try to compute off-site interactions if none exist
+            # if length(off_site_states) > 0
+            #     let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+            #         set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+            #             matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
                     
-                    _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
-                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
-                end
-            end
+            #         _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+            #         values = permutedims(values, (2, 1, 3))
+            #         set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+            #             matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+            #     end
+            # end
 
             
             # Evaluate on-site terms for homo-atomic interactions; but only if not instructed

@@ -702,6 +702,10 @@ function _locate_and_get_sub_blocks(matrix::AbstractArray{T, 3}, z_1, z_2, s_i, 
     block_idxs = repeat_atomic_block_idxs(block_idxs, size(matrix, 3))
     block_idxs = filter_off_site_idxs(block_idxs)
 
+    if size(block_idxs, 2) == 0
+        return zeros(basis_def[z_1][s_i] * 2 + 1, basis_def[z_2][s_j] * 2 + 1, 0), block_idxs
+    end
+
     if (z_1 == z_2) && (s_i == s_j) && !no_reduce
         block_idxs = filter_upper_idxs(block_idxs) 
     end

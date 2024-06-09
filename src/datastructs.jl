@@ -422,8 +422,13 @@ function get_dataset(
         # information being culled here rather than later on; thus saving on memory.
         states = _get_states(block_idxs, atoms; r=radial(submodel).R.ru)
     else
-        # For off-site states the basis' bond envelope must be provided.
-        states = _get_states(block_idxs, atoms, envelope(submodel), images)
+        if size(block_idxs, 2) == 0
+            states = zeros(0)
+        else
+            states = _get_states(block_idxs, atoms, envelope(submodel), images)
+        end
+        # # For off-site states the basis' bond envelope must be provided.
+        # states = _get_states(block_idxs, atoms, envelope(submodel), images)
     end
 
     # Construct and return the requested DataSet object
