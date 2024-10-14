@@ -2,12 +2,14 @@ module Predicting
 
 using ACE, ACEbase, ACEhamiltonians, LinearAlgebra
 using JuLIP: Atoms, neighbourlist
-using ACE: ACEConfig, AbstractState, evaluate
+using ACE: ACEConfig, AbstractState, SymmetricBasis, evaluate
 
 using ACEhamiltonians.States: _get_states
 using ACEhamiltonians.Fitting: _evaluate_real
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
+
+using SharedArrays, Distributed, TensorCast
 
 export predict, predict!, cell_translations
 
@@ -149,6 +151,340 @@ function predict!(values::AbstractMatrix, submodel::T, state::Vector{S}) where {
 end
 
 
+#########for parallelization
+
+# function get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}})
+#     # This will be rewritten once the other code has been refactored.
+
+#     # Should `A` not be constructed using `acquire_B!`?
+
+#     n₁, n₂, type = ACE.valtype(basis).parameters[3:5]
+#     # Currently the code desires "A" to be an X×Y matrix of Nᵢ×Nⱼ matrices, where X is
+#     # the number of sub-block samples, Y is equal to `size(bos.basis.A2Bmap)[1]`, and
+#     # Nᵢ×Nⱼ is the sub-block shape; i.e. 3×3 for pp interactions. This may be refactored
+#     # at a later data if this layout is not found to be strictly necessary.
+#     n₃ = length(states)
+
+#     Avalr = SharedArray{real(type), 4}(n₃, length(basis), n₁, n₂)
+#     np = length(procs(Avalr))
+#     nstates = length(states)
+#     nstates_pp = ceil(Int, nstates/np)
+#     np = ceil(Int, nstates/nstates_pp)
+#     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+#     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+#     push!(idx_ends, nstates)
+#     @sync begin
+#         for (i, id) in enumerate(procs(Avalr)[begin:np])
+#             @async begin
+#                 @spawnat id begin
+#                     cfg = ACEConfig.(states[idx_begins[i]:idx_ends[i]])
+#                     Aval_ele = evaluate.(Ref(basis), cfg)
+#                     Avalr_ele = _evaluate_real.(Aval_ele)
+#                     Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
+#                     @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
+#                     Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
+#                 end
+#             end
+#         end
+#     end
+#     @cast A[i,j][k,l] := Avalr[i,j,k,l]
+
+#    return A
+
+# end
+
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::SubArray{<:Any})
+#     return coefficients' * B + mean
+# end
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Matrix{<:Any})
+#     @cast B_broadcast[i][j] := B[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+
+
+function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::SubArray{<:Any})
+    return coefficients' * B + mean
+end
+
+function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Vector{Matrix{Float64}})
+    return coefficients' * B + mean
+end
+
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4}, type::String="sub")
+#     @cast B_sub[i,j][k,l] := B[i,j,k,l] 
+#     @cast B_broadcast[i][j] := B_sub[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4}, type::String="sub")
+#     @cast B_sub[i,j][k,l] := B[i,j,k,l] 
+#     @cast B_broadcast[i][j] := B_sub[i,j]
+#     result = infer.(Ref(coefficients), Ref(mean), B_broadcast)
+#     return result
+# end
+
+
+
+function predict_single(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}}, coefficients::Vector{Float64}, mean::Matrix{Float64})
+# function predict_single(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+    
+    #get_discriptors(basis::SymmetricBasis, states::Vector{<:Vector{<:AbstractState}})
+    # basis = submodel.basis
+
+    # This will be rewritten once the other code has been refactored.
+
+    # Should `A` not be constructed using `acquire_B!`?
+
+    n₁, n₂, type = ACE.valtype(basis).parameters[3:5]
+    # Currently the code desires "A" to be an X×Y matrix of Nᵢ×Nⱼ matrices, where X is
+    # the number of sub-block samples, Y is equal to `size(bos.basis.A2Bmap)[1]`, and
+    # Nᵢ×Nⱼ is the sub-block shape; i.e. 3×3 for pp interactions. This may be refactored
+    # at a later data if this layout is not found to be strictly necessary.
+    n₃ = length(states)
+
+    values_sub = SharedArray{real(type), 3}(n₁, n₂, n₃)
+    np = length(procs(values_sub))
+    nstates = length(states)
+    nstates_pp = ceil(Int, nstates/np)
+    np = ceil(Int, nstates/nstates_pp)
+    idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+    idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+    push!(idx_ends, nstates)
+    @sync begin
+        for (i, id) in enumerate(procs(values_sub)[begin:np])
+            # @async begin
+            @spawnat id begin
+                cfg = ACEConfig.(states[idx_begins[i]:idx_ends[i]])
+                Aval_ele = evaluate.(Ref(basis), cfg)
+                Avalr_ele = _evaluate_real.(Aval_ele)
+                Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
+                result = infer.(Ref(coefficients), Ref(mean), collect(eachrow(Avalr_ele)))
+                values_sub[:, :, idx_begins[i]: idx_ends[i]] .= cat(result..., dims=3)
+                # @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
+                # Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
+            end
+            # end
+        end
+    end
+    # @cast A[i,j][k,l] := Avalr[i,j,k,l]
+
+   return values_sub #A
+
+end
+
+
+
+# function infer(coefficients::Vector{Float64}, mean::Matrix{Float64}, B::Array{<:Any, 4})
+#     np = length(workers())
+#     nstates = size(B, 1)
+#     nstates_pp = ceil(Int, nstates/np)
+#     np = ceil(Int, nstates/nstates_pp)
+#     worker_id = workers()
+#     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+#     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+#     push!(idx_ends, nstates)
+#     result = []
+#     @sync begin
+#         for i in 1:np
+#             id = worker_id[i]
+#             B_sub = @view B[idx_begins[i]:idx_ends[i],:,:,:]
+#             push!(result, @spawnat id infer(coefficients, mean, B_sub, "sub"))
+#         end
+#     end    
+#     # result = fetch.(result)
+#     result = vcat(result...)
+#     result = cat(result..., dims=3)
+#     return result
+# end
+
+
+
+function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+    # If the model has been fitted then use it to predict the results; otherwise just
+    # assume the results are zero.
+    if is_fitted(submodel)
+        # Construct a descriptor representing the supplied state and evaluate the
+        # basis on it to predict the associated sub-block.  
+        # A = evaluate(submodel.basis, ACEConfig(state))
+        # B = _evaluate_real(A)
+        # B_batch = get_discriptors(submodel.basis, states)
+        # # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+        # # means_expanded = fill(submodel.mean, size(B_batch, 1))
+        # # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+        # values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+        values .= predict_single(submodel.basis, states, submodel.coefficients, submodel.mean)
+        # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
+        # values = (submodel.coefficients' * B) + submodel.mean
+
+        @static if DUAL_BASIS_MODEL
+            if typeof(submodel) <: AnisoSubModel
+                # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+                # B = _evaluate_real(A)
+                # B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+                # # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+                # # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+                # #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+                # values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+                values .= (values + permutedims(predict_single(submodel.basis_i, [reflect.(state) for state in states],
+                                                                submodel.coefficients_i, submodel.mean_i), (2,1,3))) / 2.0
+
+            elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+                # If the dual basis model is being used then it is assumed that the symmetry
+                # issue has not been resolved thus an additional symmetrisation operation is
+                # required.
+                # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+                # B = _evaluate_real(A)
+                # B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+                # # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+                # # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+                # #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+                # values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+                values .= (values + permutedims(predict_single(submodel.basis, [reflect.(state) for state in states],
+                                                                submodel.coefficients, submodel.mean), (2,1,3))) / 2.0
+            end
+        end
+
+    else
+        fill!(values, 0.0)
+    end
+end
+
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     # If the model has been fitted then use it to predict the results; otherwise just
+#     # assume the results are zero.
+#     if is_fitted(submodel)
+#         # Construct a descriptor representing the supplied state and evaluate the
+#         # basis on it to predict the associated sub-block.  
+#         # A = evaluate(submodel.basis, ACEConfig(state))
+#         # B = _evaluate_real(A)
+#         B_batch = get_discriptors(submodel.basis, states)
+#         # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+#         # means_expanded = fill(submodel.mean, size(B_batch, 1))
+#         # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+#         values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+#         # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
+#         # values = (submodel.coefficients' * B) + submodel.mean
+
+#         @static if DUAL_BASIS_MODEL
+#             if typeof(submodel) <: AnisoSubModel
+#                 # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+
+#             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+#                 # If the dual basis model is being used then it is assumed that the symmetry
+#                 # issue has not been resolved thus an additional symmetrisation operation is
+#                 # required.
+#                 # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+#             end
+#         end
+
+#     else
+#         fill!(values, 0.0)
+#     end
+# end
+
+
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     # If the model has been fitted then use it to predict the results; otherwise just
+#     # assume the results are zero.
+#     if is_fitted(submodel)
+#         # Construct a descriptor representing the supplied state and evaluate the
+#         # basis on it to predict the associated sub-block.  
+#         # A = evaluate(submodel.basis, ACEConfig(state))
+#         # B = _evaluate_real(A)
+#         B_batch = get_discriptors(submodel.basis, states)
+#         # coeffs_expanded = repeat(submodel.coefficients', size(B_batch, 1), 1) 
+#         # means_expanded = fill(submodel.mean, size(B_batch, 1))
+#         # values .= dropdims(sum(coeffs_expanded .* B_batch, dims=2), dims=2) + means_expanded
+#         values .= cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3)
+#         # values .= cat([(submodel.coefficients' * B_batch[i,:]) + submodel.mean for i in 1: size(B_batch,1)]..., dims=3)
+#         # values = (submodel.coefficients' * B) + submodel.mean
+
+#         @static if DUAL_BASIS_MODEL
+#             if typeof(submodel) <: AnisoSubModel
+#                 # A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis_i, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients_i' * B_batch[i,:]) + submodel.mean_i)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients_i, submodel.mean_i, B_batch)..., dims=3), (2,1,3))) / 2.0
+
+#             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+#                 # If the dual basis model is being used then it is assumed that the symmetry
+#                 # issue has not been resolved thus an additional symmetrisation operation is
+#                 # required.
+#                 # A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+#                 # B = _evaluate_real(A)
+#                 B_batch = get_discriptors(submodel.basis, [reflect.(state) for state in states])
+#                 # values .= (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+#                 # values .= (values + cat([((submodel.coefficients' * B_batch[i,:]) + submodel.mean)' for 
+#                 #             i in 1: size(B_batch,1)]..., dims=3))/2.0
+#                 values .= (values + permutedims(cat(infer(submodel.coefficients, submodel.mean, B_batch)..., dims=3), (2,1,3))) / 2.0
+#             end
+#         end
+
+#     else
+#         fill!(values, 0.0)
+#     end
+# end
+
+
+
+# function predict_state(submodel::T, state::Vector{S}) where {T<:AHSubModel, S<:AbstractState}
+#     # If the model has been fitted then use it to predict the results; otherwise just
+#     # assume the results are zero.
+#     if is_fitted(submodel)
+#         # Construct a descriptor representing the supplied state and evaluate the
+#         # basis on it to predict the associated sub-block.  
+#         A = evaluate(submodel.basis, ACEConfig(state))
+#         B = _evaluate_real(A)
+#         values = (submodel.coefficients' * B) + submodel.mean
+
+#         @static if DUAL_BASIS_MODEL
+#             if T<: AnisoSubModel
+#                 A = evaluate(submodel.basis_i, ACEConfig(reflect.(state)))
+#                 B = _evaluate_real(A)
+#                 values = (values + ((submodel.coefficients_i' * B) + submodel.mean_i)') / 2.0
+#             elseif !ison(submodel) && (submodel.id[1] == submodel.id[2]) && (submodel.id[3] == submodel.id[4])
+#                 # If the dual basis model is being used then it is assumed that the symmetry
+#                 # issue has not been resolved thus an additional symmetrisation operation is
+#                 # required.
+#                 A = evaluate(submodel.basis, ACEConfig(reflect.(state)))
+#                 B = _evaluate_real(A)
+#                 values = (values + ((submodel.coefficients' * B) + submodel.mean)') / 2.0
+#             end
+#         end
+
+#     else
+#         values = zeros(size(submodel))
+#     end
+# end
+
+
+
+
 # Construct and fill a matrix with the results of a single state
 
 """
@@ -171,11 +507,60 @@ Predict the values for a collection of sub-blocks by evaluating the provided bas
 specified states. This is a the batch operable variant of the primary `predict!` method. 
 
 """
-function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
-    for i=1:length(states)
-        @views predict!(values[:, :, i], submodel, states[i])
-    end
-end
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     for i=1:length(states)
+#         @views predict!(values[:, :, i], submodel, states[i])
+#     end
+# end
+
+
+# using Base.Threads
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     @threads for i=1:length(states)
+#         @views predict!(values[:, :, i], submodel, states[i])
+#     end
+# end
+
+
+# using Distributed
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     @sync begin
+#         for i=1:length(states)
+#             @async begin
+#                 @spawn @views predict!(values[:, :, i], submodel, states[i])
+#             end
+#         end
+#     end
+# end
+
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     np = length(procs(values))
+#     nstates = length(states)
+#     nstates_pp = ceil(Int, nstates/np)
+#     np = ceil(Int, nstates/nstates_pp)
+#     idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
+#     idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
+#     push!(idx_ends, nstates)
+#     @sync begin
+#         for (i, id) in enumerate(procs(values)[begin:np])
+#             @async begin
+#                 @spawnat id begin
+#                     values[:, :, idx_begins[i]: idx_ends[i]] = cat(predict_state.(Ref(submodel), states[idx_begins[i]:idx_ends[i]])..., dims=3)
+#                 end              
+#             end
+#         end
+#     end
+# end
+
+
+# function predict!(values::AbstractArray{<:Any, 3}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     for i=1:length(states)
+#         @views predict!(values[:, :, i], submodel, states[i])
+#     end
+# end
+
 
 
 """
@@ -189,6 +574,16 @@ function predict(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}}
 end
 
 
+# function predict(submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     # Construct and fill a matrix with the results from multiple states
+#     n, m, type = ACE.valtype(submodel.basis).parameters[3:5]
+#     # values = Array{real(type), 3}(undef, n, m, length(states))
+#     values = SharedArray{real(type), 3}(n, m, length(states))
+#     predict!(values, submodel, states)
+#     return values
+# end
+
+
 # Special version of the batch operable `predict!` method that is used when scattering data
 # into a Vector of AbstractMatrix types rather than into a three dimensional tensor. This
 # is implemented to facilitate the scattering of data into collection of sub-view arrays.
@@ -198,8 +593,12 @@ function predict!(values::Vector{<:Any}, submodel::AHSubModel, states::Vector{<:
     end
 end
 
-
-
+# using Base.Threads
+# function predict!(values::Vector{<:Any}, submodel::AHSubModel, states::Vector{<:Vector{<:AbstractState}})
+#     @threads for i=1:length(states)
+#         @views predict!(values[i], submodel, states[i])
+#     end
+# end
 
 """
 """
@@ -213,6 +612,7 @@ function predict(model::Model, atoms::Atoms, cell_indices::Union{Nothing, Abstra
         return _predict(model, atoms, cell_indices; kwargs...)
     end
 end
+
 
 function _predict(model, atoms, cell_indices)
 
@@ -263,22 +663,45 @@ function _predict(model, atoms, cell_indices)
                 off_blockᵢ = filter_upper_idxs(off_blockᵢ)
             end
 
-            off_site_states = _get_states( # Build states for the off-site atom-blocks
-                off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+
+            if size(off_blockᵢ, 2) != 0 
+
+                off_site_states = _get_states( # Build states for the off-site atom-blocks
+                    off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+                
+                # Don't try to compute off-site interactions if none exist
+                if length(off_site_states) > 0
+                    let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+                        set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+                            matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+
+                        
+                        _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+                        values = permutedims(values, (2, 1, 3))
+                        set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+                            matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+                    end
+                end
+
+            end
             
-            # Don't try to compute off-site interactions if none exist
-            if length(off_site_states) > 0
-                let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
-                    set_sub_blocks!( # Assign off-site sub-blocks to the matrix
-                        matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+
+            # off_site_states = _get_states( # Build states for the off-site atom-blocks
+            #     off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+            
+            # # Don't try to compute off-site interactions if none exist
+            # if length(off_site_states) > 0
+            #     let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+            #         set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+            #             matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
 
                     
-                    _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
-                    values = permutedims(values, (2, 1, 3))
-                    set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
-                        matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
-                end
-            end
+            #         _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+            #         values = permutedims(values, (2, 1, 3))
+            #         set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+            #             matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+            #     end
+            # end
 
             
             # Evaluate on-site terms for homo-atomic interactions; but only if not instructed
@@ -306,6 +729,100 @@ function _predict(model, atoms, cell_indices)
     
     return matrix    
 end
+
+
+# function _predict(model, atoms, cell_indices)
+
+#     # Todo:-
+#     #   - use symmetry to prevent having to compute data for cells reflected
+#     #     cell pairs; i.e. [ 0,  0,  1] & [ 0,  0, -1]
+#     #   - Setting the on-sites to an identity should be determined by the model
+#     #     rather than just assuming that the user always wants on-site overlap
+#     #     blocks to be identity matrices.
+
+#     basis_def = model.basis_definition
+#     n_orbs = number_of_orbitals(atoms, basis_def)
+
+#     # Matrix into which the final results will be placed
+#     matrix = zeros(n_orbs, n_orbs, size(cell_indices, 2))
+    
+#     # Mirror index map array required by `_reflect_block_idxs!`
+#     mirror_idxs = _mirror_idxs(cell_indices)
+
+#     # The on-site blocks of overlap matrices are approximated as identity matrix.
+#     if model.label ≡ "S"
+#         matrix[1:n_orbs+1:n_orbs^2] .= 1.0
+#     end
+
+#     for (species₁, species₂) in species_pairs(atoms::Atoms)  
+
+#         # Matrix containing the block indices of all species₁-species₂ atom-blocks
+#         blockᵢ = repeat_atomic_block_idxs(
+#             atomic_block_idxs(species₁, species₂, atoms), size(cell_indices, 2))
+
+#         # Identify on-site sub-blocks now as they as static over the shell pair loop.
+#         # Note that when `species₁≠species₂` `length(on_blockᵢ)≡0`. 
+#         on_blockᵢ = filter_on_site_idxs(blockᵢ)
+
+#         Threads.@threads for (shellᵢ, shellⱼ) in shell_pairs(species₁, species₂, basis_def)
+
+            
+#             # Get the off-site basis associated with this interaction
+#             basis_off = model.off_site_submodels[(species₁, species₂, shellᵢ, shellⱼ)]
+
+#             # Identify off-site sub-blocks with bond-distances less than the specified cutoff
+#             off_blockᵢ = filter_idxs_by_bond_distance(
+#                 filter_off_site_idxs(blockᵢ), 
+#                 envelope(basis_off).r0cut, atoms, cell_indices)
+            
+#             # Blocks in the lower triangle are redundant in the homo-orbital interactions
+#             if species₁ ≡ species₂ && shellᵢ ≡ shellⱼ
+#                 off_blockᵢ = filter_upper_idxs(off_blockᵢ)
+#             end
+
+#             off_site_states = _get_states( # Build states for the off-site atom-blocks
+#                 off_blockᵢ, atoms, envelope(basis_off), cell_indices)
+            
+#             # Don't try to compute off-site interactions if none exist
+#             if length(off_site_states) > 0
+#                 let values = predict(basis_off, off_site_states) # Predict off-site sub-blocks
+#                     set_sub_blocks!( # Assign off-site sub-blocks to the matrix
+#                         matrix, values, off_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+
+                    
+#                     _reflect_block_idxs!(off_blockᵢ, mirror_idxs)
+#                     values = permutedims(values, (2, 1, 3))
+#                     set_sub_blocks!(  # Assign data to symmetrically equivalent blocks
+#                         matrix, values, off_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+#                 end
+#             end
+
+            
+#             # Evaluate on-site terms for homo-atomic interactions; but only if not instructed
+#             # to approximate the on-site sub-blocks as identify matrices.
+#             if species₁ ≡ species₂ && model.label ≠ "S"
+#                 # Get the on-site basis and construct the on-site states
+#                 basis_on = model.on_site_submodels[(species₁, shellᵢ, shellⱼ)]
+#                 on_site_states = _get_states(on_blockᵢ, atoms; r=radial(basis_on).R.ru)
+                
+#                 # Don't try to compute on-site interactions if none exist
+#                 if length(on_site_states) > 0
+#                     let values = predict(basis_on, on_site_states) # Predict on-site sub-blocks
+#                         set_sub_blocks!( # Assign on-site sub-blocks to the matrix
+#                             matrix, values, on_blockᵢ, shellᵢ, shellⱼ, atoms, basis_def)
+                        
+#                         values = permutedims(values, (2, 1, 3))
+#                         set_sub_blocks!(  # Assign data to the symmetrically equivalent blocks
+#                             matrix, values, on_blockᵢ, shellⱼ, shellᵢ, atoms, basis_def)
+#                     end
+#                 end
+#             end
+
+#         end
+#     end
+    
+#     return matrix    
+# end
 
 
 function _predict(model, atoms)
