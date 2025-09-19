@@ -6,11 +6,12 @@ using JuLIP: Atoms
 using ACE: ACEConfig, evaluate, scaling, AbstractState, SymmetricBasis
 using ACEhamiltonians.Common: number_of_orbitals
 using ACEhamiltonians.Bases: envelope
-using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma, load_density_matrix_gamma
+using ACEhamiltonians.DatabaseIO: load_hamiltonian_gamma, load_overlap_gamma
 using ACEatoms:AtomicNumber
 using LowRankApprox: pqrfact
 
 using ACEhamiltonians: DUAL_BASIS_MODEL
+
 
 export fit!
 
@@ -124,38 +125,6 @@ end
 
 """
 """
-# function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) where T<:AbstractFittingDataSet
-#     # This will be rewritten once the other code has been refactored.
-
-#     # Should `A` not be constructed using `acquire_B!`?
-
-#     n₁, n₂, n₃ = size(data)
-#     # Currently the code desires "A" to be an X×Y matrix of Nᵢ×Nⱼ matrices, where X is
-#     # the number of sub-block samples, Y is equal to `size(bos.basis.A2Bmap)[1]`, and
-#     # Nᵢ×Nⱼ is the sub-block shape; i.e. 3×3 for pp interactions. This may be refactored
-#     # at a later data if this layout is not found to be strictly necessary.
-#     cfg = ACEConfig.(data.states)
-#     Aval = evaluate.(Ref(basis), cfg)
-#     A = permutedims(reduce(hcat, _evaluate_real.(Aval)), (2, 1))
-    
-#     Y = [data.values[:, :, i] for i in 1:n₃]
-
-#     # Calculate the mean value x̄
-#     if enable_mean && n₁ ≡ n₂ && ison(data) 
-#         x̄ = mean(diag(mean(Y)))*I(n₁)
-#     else
-#         x̄ = zeros(n₁, n₂)
-#     end
-
-#     Y .-= Ref(x̄)
-#     return A, Y, x̄
-
-# end
-
-
-using SharedArrays
-using Distributed
-using TensorCast
 function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) where T<:AbstractFittingDataSet
     # This will be rewritten once the other code has been refactored.
 
@@ -166,32 +135,10 @@ function _assemble_ls(basis::SymmetricBasis, data::T, enable_mean::Bool=false) w
     # the number of sub-block samples, Y is equal to `size(bos.basis.A2Bmap)[1]`, and
     # Nᵢ×Nⱼ is the sub-block shape; i.e. 3×3 for pp interactions. This may be refactored
     # at a later data if this layout is not found to be strictly necessary.
-
-    type = ACE.valtype(basis).parameters[5]
-    Avalr = SharedArray{real(type), 4}(n₃, length(basis), n₁, n₂)
-    np = length(procs(Avalr))
-    nstates = length(data.states)
-    nstates_pp = ceil(Int, nstates/np)
-    np = ceil(Int, nstates/nstates_pp)
-    idx_begins = [nstates_pp*(idx-1)+1 for idx in 1:np]
-    idx_ends = [nstates_pp*(idx) for idx in 1:(np-1)]
-    push!(idx_ends, nstates)
-    @sync begin
-        for (i, id) in enumerate(procs(Avalr)[begin:np])
-            # @async begin
-            @spawnat id begin
-                cfg = ACEConfig.(data.states[idx_begins[i]:idx_ends[i]])
-                Aval_ele = evaluate.(Ref(basis), cfg)
-                Avalr_ele = _evaluate_real.(Aval_ele)
-                Avalr_ele = permutedims(reduce(hcat, Avalr_ele), (2, 1))
-                @cast M[i,j,k,l] := Avalr_ele[i,j][k,l]
-                Avalr[idx_begins[i]: idx_ends[i], :, :, :] .= M
-            end
-            # end
-        end
-    end
-    @cast A[i,j][k,l] := Avalr[i,j,k,l]
-
+    cfg = ACEConfig.(data.states)
+    Aval = evaluate.(Ref(basis), cfg)
+    A = permutedims(reduce(hcat, _evaluate_real.(Aval)), (2, 1))
+    
     Y = [data.values[:, :, i] for i in 1:n₃]
 
     # Calculate the mean value x̄
@@ -312,8 +259,8 @@ function fit!(
     target = isnothing(target) ? model.label : target
 
     get_matrix = Dict(  # Select an appropriate function to load the target matrix
-        "H"=>load_hamiltonian, "S"=>load_overlap, "dm"=>load_density_matrix,
-        "Hg"=>load_hamiltonian_gamma, "Sg"=>load_overlap_gamma, "dmg"=>load_density_matrix_gamma)[target]
+        "H"=>load_hamiltonian, "S"=>load_overlap,
+        "Hg"=>load_hamiltonian_gamma, "Sg"=>load_overlap_gamma)[target]
 
     fitting_data = Dict{Any, DataSet}()
 

@@ -100,46 +100,10 @@ would be 'System-1', 'System-2', and 'System-n'.
 """
 module DatabaseIO
 using ACEhamiltonians
-using HDF5: Group, h5open, Dataset
+using HDF5: Group, h5open
 using JuLIP: Atoms
 using HDF5  # ← Can be removed once support for old HDF5 formats is dropped
 using LinearAlgebra: pinv
-
-using SparseArrays
-
-function read_sparse(data_sparse:: Group)
-
-  if haskey(data_sparse, "sizes")
-    data, indices, indptr, shape, sizes = read(data_sparse, "data"), read(data_sparse, "indices"), read(data_sparse, "indptr"),
-    read(data_sparse, "shape"), read(data_sparse, "sizes")
-    indx = cumsum(sizes)
-    pushfirst!(indx, 0)
-    indx_r = cumsum(shape[1, :].+1)
-    pushfirst!(indx_r, 0)
-
-    matrices_list = []
-    for i in 1:(length(indx)-1)
-      indx_s, indx_e = indx[i]+1, indx[i+1]
-      data_ele = data[indx_s: indx_e]
-      indices_ele = indices[indx_s: indx_e]
-      indx_r_s, indx_r_e = indx_r[i]+1, indx_r[i+1]
-      indptr_ele = indptr[indx_r_s: indx_r_e]
-      shape_ele = shape[:, i]
-      matrix = SparseMatrixCSC(shape_ele..., indptr_ele.+1, indices_ele.+1, data_ele)
-      push!(matrices_list, matrix)
-    end
-
-    dense_matrices = [Matrix(mat) for mat in matrices_list]
-    return cat(dense_matrices..., dims=3)
-
-  else
-    data, indices, indptr, shape = read(data_sparse, "data"), read(data_sparse, "indices"), read(data_sparse, "indptr"), read(data_sparse, "shape")
-    return Matrix(SparseMatrixCSC(shape..., indptr.+1, indices.+1, data))
-
-  end
-
-end
-
 
 # Developers Notes:
 #   - The functions within this module are mostly just convenience wrappers for the HDF5
@@ -153,7 +117,7 @@ end
 #   - The unit information provided in the HDF5 databases should be made use of once
 #     a grand consensus as to what internal units should be used.
 
-export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition, load_density_of_states, load_fermi_level, load_density_matrix
+export load_atoms, load_hamiltonian, load_overlap, gamma_only, load_k_points_and_weights, load_cell_translations, load_basis_set_definition, load_density_of_states, load_fermi_level
 
 
 # Booleans stored by python are interpreted as Int8 by Julia rather than as booleans. Thus
@@ -308,8 +272,7 @@ number or orbitals and M the number of unit cell equivalents.
 - `H::Array`: Hamiltonian matrix. This may be either an N×N matrix, as per the single
   k-point case, or an N×N×M array for the real space case. 
 """
-# load_hamiltonian(src::Group) = read(src["Data/H"])
-load_hamiltonian(src::Group) = isa(src["Data/H"], Dataset) ? read(src["Data/H"]) : read_sparse(src["Data/H"]) 
+load_hamiltonian(src::Group) = read(src["Data/H"])
 # Todo: add unit conversion to `load_hamiltonian`
 
 """
@@ -327,11 +290,8 @@ number or orbitals and M the number of unit cell equivalents.
 - `H::Array`: overlap matrix. This may be either an N×N matrix, as per the single
   k-point case, or an N×N×M array for the real space case. 
 """
-# load_overlap(src::Group) = read(src["Data/S"])
-load_overlap(src::Group) = isa(src["Data/S"], Dataset) ? read(src["Data/S"]) : read_sparse(src["Data/S"]) 
+load_overlap(src::Group) = read(src["Data/S"])
 # Todo: add unit conversion to `load_overlap`
-
-load_density_matrix(src::Group) = isa(src["Data/dm"], Dataset) ? read(src["Data/dm"]) : read_sparse(src["Data/dm"]) 
 
 
 """
@@ -344,14 +304,10 @@ k-points, etc.
 gamma_only(src::Group) = !haskey(src, "Info/Translations")
 
 # Get the gamma point only matrix; these are for debugging and are will be removed later.
-# load_hamiltonian_gamma(src::Group) = read(src["Data/H_gamma"])
-load_hamiltonian_gamma(src::Group) = isa(src["Data/H_gamma"], Dataset) ? read(src["Data/H_gamma"]) : read_sparse(src["Data/H_gamma"]) 
+load_hamiltonian_gamma(src::Group) = read(src["Data/H_gamma"])
 # Todo: add unit conversion to `load_hamiltonian_gamma`
-# load_overlap_gamma(src::Group) = read(src["Data/S_gamma"])
-load_overlap_gamma(src::Group) = isa(src["Data/S_gamma"], Dataset) ? read(src["Data/S_gamma"]) : read_sparse(src["Data/S_gamma"]) 
+load_overlap_gamma(src::Group) = read(src["Data/S_gamma"])
 # Todo: add unit conversion to `load_overlap_gamma`
-load_density_matrix_gamma(src::Group) = isa(src["Data/dm_gamma"], Dataset) ? read(src["Data/dm_gamma"]) : read_sparse(src["Data/dm_gamma"]) 
-
 
 """
     load_density_of_states(src)
